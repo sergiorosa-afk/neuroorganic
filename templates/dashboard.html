@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — NeuroOrganic{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Dashboard</h1>
+        <p class="text-sm text-gray-500">@{{ current_user.cliente.instagram_handle }}</p>
+    </div>
+    {% if current_user.is_admin %}
+    <button onclick="document.getElementById('modal-gerar').classList.remove('hidden')"
+        class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition font-medium">
+        ✦ Gerar Posts
+    </button>
+    {% endif %}
+</div>
+
+<!-- Contadores -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white rounded-xl border border-gray-100 p-4 text-center">
+        <div class="text-2xl font-bold text-yellow-500">{{ contadores.pendente }}</div>
+        <div class="text-xs text-gray-500 mt-1">Aguardando aprovação</div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-100 p-4 text-center">
+        <div class="text-2xl font-bold text-green-500">{{ contadores.aprovado }}</div>
+        <div class="text-xs text-gray-500 mt-1">Aprovados</div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-100 p-4 text-center">
+        <div class="text-2xl font-bold text-blue-500">{{ contadores.publicado }}</div>
+        <div class="text-xs text-gray-500 mt-1">Publicados</div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-100 p-4 text-center">
+        <div class="text-2xl font-bold text-red-400">{{ contadores.reprovado }}</div>
+        <div class="text-xs text-gray-500 mt-1">Reprovados</div>
+    </div>
+</div>
+
+<!-- Lista de posts -->
+{% if posts %}
+<div class="space-y-4">
+    {% for post in posts %}
+    <div class="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+        <div class="flex flex-col md:flex-row">
+
+            <!-- Imagem — clicável para abrir modal -->
+            <div class="md:w-56 flex-shrink-0 relative cursor-pointer group"
+                 onclick="openModal('modal-{{ post.id }}')">
+                {% if post.imagem_url %}
+                <img src="{{ post.imagem_url }}"
+                     class="w-full h-56 md:h-full object-cover"
+                     alt="Post {{ post.titulo }}">
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all
+                            flex items-center justify-center">
+                    <span class="opacity-0 group-hover:opacity-100 transition
+                                 text-white text-xs bg-black/50 px-3 py-1.5 rounded-full">
+                        Ver ampliado
+                    </span>
+                </div>
+                {% else %}
+                <div class="w-full h-56 md:h-full bg-gray-100 flex items-center justify-center
+                            text-gray-300 text-sm">
+                    Sem imagem
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Conteúdo -->
+            <div class="flex-1 p-5 flex flex-col justify-between min-w-0">
+                <div>
+                    <!-- Status + meta -->
+                    <div class="flex items-center gap-2 mb-3 flex-wrap">
+                        <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold
+                            {% if post.status == 'pendente' %}bg-yellow-100 text-yellow-700
+                            {% elif post.status == 'aprovado' %}bg-green-100 text-green-700
+                            {% elif post.status == 'publicado' %}bg-blue-100 text-blue-700
+                            {% else %}bg-red-100 text-red-600{% endif %}">
+                            {{ post.status|capitalize }}
+                        </span>
+                        {% if post.dia_semana %}
+                        <span class="text-xs text-gray-400">{{ DIAS_LABEL[post.dia_semana] }}</span>
+                        {% endif %}
+                        {% if post.data_publicacao %}
+                        <span class="text-xs text-gray-400">
+                            {{ post.data_publicacao.strftime('%d/%m/%Y') }}
+                        </span>
+                        {% endif %}
+                        {% if post.status == 'publicado' and post.publicado_em %}
+                        <span class="text-xs text-blue-400">
+                            ✓ publicado {{ post.publicado_em.strftime('%d/%m às %H:%M') }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Título -->
+                    <h3 class="font-semibold text-gray-900 mb-2 leading-tight">
+                        {{ post.titulo or '(sem título)' }}
+                    </h3>
+
+                    <!-- Legenda completa -->
+                    <p class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
+                        {{ post.legenda or '(sem legenda)' }}
+                    </p>
+
+                    <!-- Feedback de reprovação -->
+                    {% if post.status == 'reprovado' and post.feedback %}
+                    <div class="mt-3 px-3 py-2 bg-red-50 rounded-lg border border-red-100">
+                        <p class="text-xs text-red-600">
+                            <span class="font-medium">Feedback:</span> {{ post.feedback }}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Prompt usado (colapsável, só para admin) -->
+                    {% if current_user.is_admin and post.prompt_usado %}
+                    <div class="mt-3">
+                        <button onclick="toggle('prompt-{{ post.id }}')"
+                            class="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
+                            Ver prompt de imagem
+                        </button>
+                        <div id="prompt-{{ post.id }}" class="hidden mt-1">
+                            <p class="text-xs text-gray-400 italic bg-gray-50 rounded p-2 leading-relaxed">
+                                {{ post.prompt_usado }}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Ações -->
+                {% if post.status == 'pendente' %}
+                <div class="mt-4 space-y-3">
+                    <div class="flex flex-wrap gap-2">
+                        <!-- Aprovar -->
+                        <form method="POST" action="{{ url_for('aprovar_post', post_id=post.id) }}">
+                            <button type="submit"
+                                class="px-4 py-1.5 bg-green-600 text-white text-xs font-medium
+                                       rounded-lg hover:bg-green-700 transition">
+                                ✓ Aprovar
+                            </button>
+                        </form>
+                        <!-- Reprovar -->
+                        <button onclick="toggle('feedback-{{ post.id }}')"
+                            class="px-4 py-1.5 bg-red-100 text-red-600 text-xs font-medium
+                                   rounded-lg hover:bg-red-200 transition">
+                            ✕ Reprovar
+                        </button>
+                        <!-- Regerar -->
+                        <form method="POST" action="{{ url_for('regerar_post', post_id=post.id) }}"
+                              onsubmit="return confirm('Gerar novo post? Este será marcado como reprovado.')">
+                            <button type="submit"
+                                class="px-4 py-1.5 bg-purple-100 text-purple-700 text-xs font-medium
+                                       rounded-lg hover:bg-purple-200 transition">
+                                ↺ Regerar
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Formulário de feedback (oculto) -->
+                    <div id="feedback-{{ post.id }}" class="hidden">
+                        <form method="POST" action="{{ url_for('reprovar_post', post_id=post.id) }}"
+                              class="flex gap-2">
+                            <input type="text" name="feedback"
+                                placeholder="Motivo da reprovação (opcional)"
+                                class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs
+                                       focus:outline-none focus:ring-2 focus:ring-red-200">
+                            <button type="submit"
+                                class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg
+                                       hover:bg-red-700 transition flex-shrink-0">
+                                Confirmar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                {% elif post.status == 'reprovado' %}
+                <div class="mt-4">
+                    <form method="POST" action="{{ url_for('regerar_post', post_id=post.id) }}"
+                          onsubmit="return confirm('Gerar novo post com base no feedback?')">
+                        <button type="submit"
+                            class="px-4 py-1.5 bg-purple-600 text-white text-xs font-medium
+                                   rounded-lg hover:bg-purple-700 transition">
+                            ↺ Gerar novo post
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de preview completo -->
+    <div id="modal-{{ post.id }}"
+         class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+         onclick="if(event.target===this) closeModal('modal-{{ post.id }}')">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl
+                    max-h-[90vh] flex flex-col">
+            {% if post.imagem_url %}
+            <div class="aspect-square flex-shrink-0 overflow-hidden">
+                <img src="{{ post.imagem_url }}"
+                     class="w-full h-full object-cover"
+                     alt="{{ post.titulo }}">
+            </div>
+            {% endif %}
+            <div class="p-5 overflow-y-auto">
+                <div class="flex justify-between items-start gap-3 mb-2">
+                    <h3 class="font-bold text-gray-900 leading-tight">{{ post.titulo }}</h3>
+                    <button onclick="closeModal('modal-{{ post.id }}')"
+                        class="text-gray-400 hover:text-gray-600 text-lg flex-shrink-0 leading-none">
+                        ✕
+                    </button>
+                </div>
+                <p class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
+                    {{ post.legenda }}
+                </p>
+                {% if post.status == 'pendente' %}
+                <div class="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+                    <form method="POST" action="{{ url_for('aprovar_post', post_id=post.id) }}">
+                        <button type="submit"
+                            class="px-4 py-2 bg-green-600 text-white text-xs font-medium
+                                   rounded-lg hover:bg-green-700 transition">
+                            ✓ Aprovar
+                        </button>
+                    </form>
+                    <button onclick="closeModal('modal-{{ post.id }}'); toggle('feedback-{{ post.id }}')"
+                        class="px-4 py-2 bg-red-100 text-red-600 text-xs font-medium
+                               rounded-lg hover:bg-red-200 transition">
+                        ✕ Reprovar
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-12 text-center">
+    <p class="text-gray-400 text-sm">Nenhum post gerado ainda.</p>
+    <p class="text-gray-300 text-xs mt-1">
+        Os posts aparecerão aqui assim que forem criados pelo sistema.
+    </p>
+</div>
+{% endif %}
+
+<!-- Modal: escolher data para gerar posts -->
+<div id="modal-gerar"
+     class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+     onclick="if(event.target===this) document.getElementById('modal-gerar').classList.add('hidden')">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-1">✦ Gerar Posts</h2>
+        <p class="text-sm text-gray-500 mb-5">Escolha para qual data quer gerar os posts.</p>
+        <form method="POST" action="{{ url_for('admin_gerar') }}" id="form-gerar"
+              onsubmit="iniciarGeracao()">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
+            <input type="date" name="data_publicacao"
+                   value="{{ today }}"
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-5
+                          focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            <div class="flex gap-3">
+                <button type="submit" id="btn-gerar"
+                    class="flex-1 py-2 bg-indigo-600 text-white text-sm font-medium
+                           rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+                    <span id="btn-gerar-texto">Gerar</span>
+                    <svg id="btn-gerar-spinner" class="hidden animate-spin h-4 w-4 text-white"
+                         xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                </button>
+                <button type="button" id="btn-cancelar"
+                    onclick="document.getElementById('modal-gerar').classList.add('hidden')"
+                    class="flex-1 py-2 bg-gray-100 text-gray-700 text-sm font-medium
+                           rounded-lg hover:bg-gray-200 transition">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+        <!-- Estado de loading visível -->
+        <div id="gerar-loading" class="hidden mt-4 text-center">
+            <p class="text-sm text-indigo-600 font-medium animate-pulse">
+                ⏳ Gerando post com IA… isso leva cerca de 30 segundos.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    document.body.style.overflow = '';
+}
+function toggle(id) {
+    document.getElementById(id).classList.toggle('hidden');
+}
+function iniciarGeracao() {
+    document.getElementById('btn-gerar-texto').textContent = 'Gerando…';
+    document.getElementById('btn-gerar-spinner').classList.remove('hidden');
+    document.getElementById('btn-gerar').disabled = true;
+    document.getElementById('btn-cancelar').disabled = true;
+    document.getElementById('gerar-loading').classList.remove('hidden');
+}
+</script>
+{% endblock %}

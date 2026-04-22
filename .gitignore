@@ -1,0 +1,11 @@
+venv/
+dev.db
+.env
+static/uploads/*.jpg
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+neuroorganic-layout/
+neuroorganic-layout/
+.claude/

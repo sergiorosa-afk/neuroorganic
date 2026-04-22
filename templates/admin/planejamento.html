@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block title %}Planejamento — Admin{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Planejamento de Posts</h1>
+        <p class="text-sm text-gray-500">Escreva o planejamento, visualize e gere todos os criativos da semana</p>
+    </div>
+    <form method="GET">
+        <select name="cliente_id" onchange="this.form.submit()"
+            class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+            {% for c in clientes %}
+            <option value="{{ c.id }}" {% if c.id == cliente_sel.id %}selected{% endif %}>
+                @{{ c.instagram_handle }} — {{ c.nome }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<!-- Formato -->
+<div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4 text-sm text-blue-800">
+    <p class="font-semibold mb-1">Formato aceito:</p>
+    <pre class="font-mono text-xs text-blue-700 leading-relaxed">22/04/2026 - Titulo: Seu título aqui
+Legenda: Sua legenda aqui...
+
+23/04/2026 - Titulo: Outro título
+Legenda: Outra legenda...</pre>
+    <p class="text-xs text-blue-600 mt-2">O sistema identifica o dia da semana pela data e usa o prompt de imagem configurado para aquele dia.</p>
+</div>
+
+<!-- Formulários ocultos -->
+<form method="POST" action="{{ url_for('salvar_planejamento') }}" id="form-salvar">
+    <input type="hidden" name="cliente_id" value="{{ cliente_sel.id }}">
+    <input type="hidden" name="planejamento_texto" id="hidden-salvar">
+</form>
+
+<form method="POST" action="{{ url_for('preview_planejamento') }}" id="form-preview">
+    <input type="hidden" name="cliente_id" value="{{ cliente_sel.id }}">
+    <input type="hidden" name="planejamento_texto" id="hidden-preview">
+</form>
+
+<form method="POST" action="{{ url_for('gerar_do_planejamento') }}" id="form-gerar">
+    <input type="hidden" name="cliente_id" value="{{ cliente_sel.id }}">
+    <input type="hidden" name="planejamento_texto" id="hidden-gerar">
+</form>
+
+<!-- Editor -->
+<div class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+    <textarea id="planejamento-textarea" rows="16"
+        placeholder="22/04/2026 - Titulo: Título do post&#10;Legenda: Legenda do post&#10;&#10;23/04/2026 - Titulo: Outro título&#10;Legenda: Outra legenda..."
+        class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-300 resize-y">{{ cliente_sel.planejamento_texto or '' }}</textarea>
+
+    <div class="flex justify-between items-center mt-4">
+        <button type="button" onclick="salvar()"
+            class="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition">
+            Salvar rascunho
+        </button>
+        <button type="button" onclick="verPreview()"
+            class="px-5 py-2 border border-indigo-300 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-50 transition">
+            Visualizar semana →
+        </button>
+    </div>
+</div>
+
+{% if preview is defined and preview %}
+<!-- Preview das entradas -->
+<div class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+    <h2 class="font-semibold text-gray-800 mb-3">
+        Semana detectada — {{ preview|length }} post{{ 's' if preview|length != 1 else '' }}
+    </h2>
+
+    <div class="space-y-2 mb-5">
+        {% for p in preview %}
+        <div class="flex items-start gap-3 p-3 rounded-lg border
+            {% if p.fim_de_semana %}border-gray-100 bg-white opacity-50
+            {% elif p.ja_existe %}border-yellow-200 bg-yellow-50
+            {% else %}border-gray-100 bg-gray-50{% endif %}">
+            <div class="min-w-[90px]">
+                <span class="text-xs font-semibold text-gray-500 uppercase">{{ p.dia }}</span>
+                <p class="text-xs text-gray-400">{{ p.data }}</p>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">{{ p.titulo }}</p>
+                {% if p.legenda_curta %}
+                <p class="text-xs text-gray-500 mt-0.5">{{ p.legenda_curta }}</p>
+                {% endif %}
+            </div>
+            {% if p.fim_de_semana %}
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">fim de semana</span>
+            {% elif p.ja_existe %}
+            <span class="text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full whitespace-nowrap">já existe</span>
+            {% else %}
+            <span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">vai gerar</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% set novos = preview | selectattr('ja_existe', 'equalto', false) | list %}
+    {% if novos %}
+    <div class="flex justify-end">
+        <button type="button"
+            onclick="gerarSemana()"
+            id="btn-gerar"
+            class="px-7 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition flex items-center gap-2">
+            <span id="btn-label">Gerar {{ novos|length }} criativo{{ 's' if novos|length != 1 else '' }} da semana</span>
+            <span id="btn-spinner" class="hidden">Gerando...</span>
+        </button>
+    </div>
+    {% else %}
+    <p class="text-sm text-yellow-700 text-center py-2">Todos os posts desta semana já foram gerados.</p>
+    {% endif %}
+</div>
+{% elif preview is defined and preview is not none %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+    Nenhuma entrada válida encontrada. Verifique o formato: <code class="font-mono">DD/MM/AAAA - Titulo: ...</code>
+</div>
+{% endif %}
+
+<script>
+function getText() {
+    return document.getElementById('planejamento-textarea').value;
+}
+function salvar() {
+    document.getElementById('hidden-salvar').value = getText();
+    document.getElementById('form-salvar').submit();
+}
+function verPreview() {
+    document.getElementById('hidden-preview').value = getText();
+    document.getElementById('form-preview').submit();
+}
+function gerarSemana() {
+    const btn = document.getElementById('btn-gerar');
+    document.getElementById('btn-label').classList.add('hidden');
+    document.getElementById('btn-spinner').classList.remove('hidden');
+    btn.disabled = true;
+    document.getElementById('hidden-gerar').value = getText();
+    document.getElementById('form-gerar').submit();
+}
+</script>
+{% endblock %}

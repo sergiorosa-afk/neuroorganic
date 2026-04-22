@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Clientes — Admin{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Clientes</h1>
+        <p class="text-sm text-gray-500">Gerencie os clientes da plataforma</p>
+    </div>
+    <a href="{{ url_for('novo_cliente') }}"
+        class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition">
+        + Novo Cliente
+    </a>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100">
+            <tr>
+                <th class="text-left px-5 py-3 font-medium text-gray-600">Cliente</th>
+                <th class="text-left px-5 py-3 font-medium text-gray-600">Instagram</th>
+                <th class="text-left px-5 py-3 font-medium text-gray-600">Webhook Make</th>
+                <th class="text-left px-5 py-3 font-medium text-gray-600">Status</th>
+                <th class="text-left px-5 py-3 font-medium text-gray-600">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+            {% for c in clientes %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-5 py-3 font-medium text-gray-900">{{ c.nome }}</td>
+                <td class="px-5 py-3 text-gray-500">@{{ c.instagram_handle }}</td>
+                <td class="px-5 py-3 text-gray-400 text-xs">
+                    {% if c.make_webhook_url %}
+                    <span class="text-green-600">✓ Configurado</span>
+                    {% else %}
+                    <span class="text-red-400">Não configurado</span>
+                    {% endif %}
+                </td>
+                <td class="px-5 py-3">
+                    <span class="text-xs px-2 py-0.5 rounded-full
+                        {% if c.ativo %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+                        {{ 'Ativo' if c.ativo else 'Inativo' }}
+                    </span>
+                </td>
+                <td class="px-5 py-3">
+                    <a href="{{ url_for('admin_prompts', cliente_id=c.id) }}"
+                        class="text-xs text-blue-600 hover:underline">Prompts</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
