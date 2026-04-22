@@ -31,9 +31,16 @@ function run($cmd, $label) {
 // ── Git pull ──────────────────────────────────────────────────────────────────
 run('git pull origin main 2>&1', 'Git Pull');
 
-// ── Pip install (só se requirements mudou) ────────────────────────────────────
+// ── Criar venv se não existir ─────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
 if ($action === 'full' || $action === 'pip') {
+    if (!file_exists($VENV_PIP)) {
+        echo ">>> Criando venv (primeira vez)\n";
+        $py = trim(shell_exec('which python3.9 || which python3.8 || which python3 2>/dev/null'));
+        echo "Python encontrado: $py\n";
+        run("$py -m venv venv 2>&1", 'Criar venv');
+    }
+    run("$VENV_PIP install --upgrade pip 2>&1", 'Upgrade pip');
     run("$VENV_PIP install -r requirements.txt 2>&1", 'Pip Install');
 }
 
