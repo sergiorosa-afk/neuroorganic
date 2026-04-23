@@ -45,7 +45,7 @@ Caption structure:
 - The image must visually represent the brand's real audience — follow the brand context strictly: their social class, appearance, environment, emotion
 - Do NOT default to executives, suits, offices, or aspirational lifestyles unless the brand context specifies it
 - Lighting: natural, warm, authentic — avoid overly polished corporate aesthetics
-- Format: square (1:1) Instagram format
+- Format: vertical portrait 3:4 (1080x1440) — Instagram feed format. The image must be taller than wide.
 - Negative space: leave clean area on the lower portion for text overlay
 - No text, letters, or typography in the image itself
 - Style descriptors: "cinematic lighting", "shallow depth of field", "photorealistic", "8K", "candid emotion", "authentic Brazilian people"
