@@ -408,6 +408,7 @@ def editar_cliente(cliente_id):
         abort(403)
 
     cliente = Cliente.query.get_or_404(cliente_id)
+    usuario = Usuario.query.filter_by(cliente_id=cliente_id, role='cliente').first()
 
     if request.method == 'POST':
         cliente.nome = request.form.get('nome', '').strip()
@@ -416,11 +417,24 @@ def editar_cliente(cliente_id):
         gemini_key = request.form.get('gemini_api_key', '').strip()
         cliente.gemini_api_key = gemini_key or None
         cliente.ativo = 'ativo' in request.form
+
+        if usuario:
+            novo_email = request.form.get('email', '').strip().lower()
+            nova_senha = request.form.get('senha', '').strip()
+            if novo_email and novo_email != usuario.email:
+                conflito = Usuario.query.filter_by(email=novo_email).first()
+                if conflito and conflito.id != usuario.id:
+                    flash('Este email já está em uso por outro usuário.', 'error')
+                    return render_template('admin/editar_cliente.html', cliente=cliente, usuario=usuario)
+                usuario.email = novo_email
+            if nova_senha:
+                usuario.set_senha(nova_senha)
+
         db.session.commit()
         flash(f'Cliente {cliente.nome} atualizado com sucesso.', 'success')
         return redirect(url_for('admin_clientes'))
 
-    return render_template('admin/editar_cliente.html', cliente=cliente)
+    return render_template('admin/editar_cliente.html', cliente=cliente, usuario=usuario)
 
 
 # ── Configurações (admin + cliente) ──────────────────────────────────────────
