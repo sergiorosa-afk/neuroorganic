@@ -26,19 +26,23 @@ Your role is to create highly engaging Instagram content that resonates authenti
 - Avoid clickbait without substance: the title must deliver on its promise
 
 ### Legendas (Captions)
-- 300–500 characters (count carefully)
-- CRITICAL: First 125 characters must be the hook — this is what shows before "ver mais"
-- Natural integration of 1–2 emojis that enhance meaning
-- Strong, specific call-to-action at the end
-- Exactly 5 hashtags at the very end, after the main text
+- 800–1200 characters total (Instagram rewards longer captions for engagement)
+- CRITICAL: First 125 characters must be the unmissable hook — this is ALL that shows before "ver mais"
+- USE LINE BREAKS between every section — Instagram captions must breathe. Use \n\n between paragraphs.
+- USE EMOJIS GENEROUSLY: 6–10 emojis distributed throughout the text (hook, transitions, CTA, hashtag line). Emojis must match the emotion and brand tone.
+- Strong, specific call-to-action in the last line before hashtags
+- Exactly 5 hashtags on a SEPARATE line at the very end
 - Hashtag mix: 2 high-volume + 2 medium + 1 brand hashtag relevant to the brand context
 
-Caption structure:
-1. Hook line (tension or surprising fact) — within first 125 chars
-2. Development (2–3 sentences expanding on the hook)
-3. Application (how the reader can use this or why it matters to them)
-4. CTA (specific action)
-5. Hashtags (new line, exactly 5)
+Caption structure (each section separated by \n\n):
+1. 🔥 Hook line — surprising fact, tension, or bold statement (first 125 chars, ends with emoji)
+2. Development — 2–3 sentences expanding the hook, with 1–2 emojis mid-text
+3. Application — how this matters to the reader / what they gain, with 1 emoji
+4. CTA — direct action line ending with emoji (👇 ✅ 🔗 etc.)
+5. Hashtags — on a new line, exactly 5
+
+Example of correct format:
+"Hook irresistível que para o scroll 🔥\n\nDesenvolvimento do tema em 2–3 frases que aprofundam a ideia e criam conexão emocional com o leitor. ✨\n\nO que você pode fazer com isso hoje? Aqui está o caminho mais simples para começar. 💡\n\nClique no link da bio e dê o primeiro passo agora. 👇\n\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"
 
 ### Prompts de Imagem (always in English)
 - Photorealistic photography style, high production value
@@ -56,7 +60,7 @@ You MUST respond with ONLY valid JSON. No markdown code blocks, no explanations,
 
 {
   "titulo": "título aqui (máximo 80 caracteres)",
-  "legenda": "legenda completa aqui com emojis e call to action\n\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5",
+  "legenda": "Hook irresistível que para o scroll 🔥\n\nDesenvolvimento em 2–3 frases com conexão emocional. ✨\n\nO que o leitor ganha com isso. 💡\n\nCTA direto aqui. 👇\n\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5",
   "prompt_imagem": "English photorealistic image prompt here"
 }
 
@@ -727,8 +731,9 @@ def gerar_planejamento_ia(cliente, segunda_feira):
 - Analise o mês e os dias solicitados — verifique datas comemorativas e sazonalidade
 - Se houver data relevante para a marca naquele dia, incorpore-a naturalmente
 - Se não houver, siga a intenção configurada ou crie conteúdo alinhado ao contexto da empresa
-- Títulos: máximo 80 caracteres, gancho irresistível, psicologia de persuasão
-- Legendas: 300–500 caracteres, primeiro parágrafo é o hook principal, CTA implícito no final
+- Títulos: máximo 80 caracteres, gancho irresistível, psicologia de persuasão, 1 emoji se agregar sentido
+- Legendas: 800–1200 caracteres, formato Instagram real com quebras de linha entre cada seção (\n\n), 6–10 emojis distribuídos ao longo do texto
+- Estrutura da legenda: Hook (primeiros 125 chars) → Desenvolvimento → Aplicação → CTA → Hashtags (linha separada, exatamente 5)
 - Mantenha a voz, o estilo e o público definidos no contexto da empresa
 
 ## FORMATO DE SAÍDA — retorne EXATAMENTE assim, sem nenhum texto antes ou depois:
