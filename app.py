@@ -79,20 +79,7 @@ def aprovar_post(post_id):
     post.aprovado_em = datetime.utcnow()
     db.session.commit()
 
-    cliente = post.cliente
-    if cliente.make_webhook_url:
-        from webhook import disparar_webhook
-        try:
-            base_url = os.environ.get('REQUEST_BASE_URL', request.url_root).rstrip('/')
-            disparar_webhook(cliente.make_webhook_url, post, base_url + '/')
-            post.status = 'publicado'
-            post.publicado_em = datetime.utcnow()
-            db.session.commit()
-            flash('Post aprovado e enviado para publicação no Instagram!', 'success')
-        except Exception as e:
-            flash(f'Post aprovado, mas falha ao enviar ao Make.com: {e}', 'warning')
-    else:
-        flash('Post aprovado! Configure o webhook Make.com para publicar automaticamente.', 'success')
+    flash('Post aprovado! Será publicado automaticamente no dia agendado.', 'success')
 
     return redirect(url_for('dashboard'))
 
