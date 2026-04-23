@@ -358,6 +358,26 @@ def novo_cliente():
     return render_template('admin/novo_cliente.html')
 
 
+@app.route('/admin/clientes/<int:cliente_id>/editar', methods=['GET', 'POST'])
+@login_required
+def editar_cliente(cliente_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    if request.method == 'POST':
+        cliente.nome = request.form.get('nome', '').strip()
+        cliente.instagram_handle = request.form.get('instagram_handle', '').strip().lstrip('@')
+        cliente.make_webhook_url = request.form.get('make_webhook_url', '').strip()
+        cliente.ativo = 'ativo' in request.form
+        db.session.commit()
+        flash(f'Cliente {cliente.nome} atualizado com sucesso.', 'success')
+        return redirect(url_for('admin_clientes'))
+
+    return render_template('admin/editar_cliente.html', cliente=cliente)
+
+
 # ── Admin — Configurações ─────────────────────────────────────────────────────
 
 PROVEDORES_IMAGEM = [

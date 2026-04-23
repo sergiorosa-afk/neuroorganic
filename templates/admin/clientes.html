@@ -42,9 +42,11 @@
                         {{ 'Ativo' if c.ativo else 'Inativo' }}
                     </span>
                 </td>
-                <td class="px-5 py-3">
+                <td class="px-5 py-3 flex gap-3">
                     <a href="{{ url_for('admin_prompts', cliente_id=c.id) }}"
                         class="text-xs text-blue-600 hover:underline">Prompts</a>
+                    <a href="{{ url_for('editar_cliente', cliente_id=c.id) }}"
+                        class="text-xs text-gray-500 hover:underline">Editar</a>
                 </td>
             </tr>
             {% endfor %}
