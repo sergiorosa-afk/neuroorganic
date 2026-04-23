@@ -97,6 +97,49 @@ PY;
     exit;
 }
 
+// ── Testar webhook Make.com do servidor ──────────────────────────────────────
+if ($action === 'test-webhook') {
+    $env_file = "$DIR/.env";
+    $script = <<<PY
+import os, sys, json
+sys.path.insert(0, '$DIR')
+from dotenv import load_dotenv
+load_dotenv('$env_file')
+from app import app
+from models import Cliente
+
+with app.app_context():
+    cliente = Cliente.query.filter_by(id=1).first()
+    print(f"Webhook URL: {cliente.make_webhook_url}")
+    if not cliente.make_webhook_url:
+        print("ERRO: webhook URL vazia no banco")
+        sys.exit(1)
+
+    import requests
+    payload = {
+        'post_id': 0,
+        'titulo': 'Teste do servidor',
+        'legenda': 'Teste de conexao #unilaser',
+        'imagem_url': 'https://neuroorganic.neuroseller.com.br/static/uploads/teste.jpg',
+        'instagram_handle': cliente.instagram_handle,
+        'data_publicacao': '2026-04-23',
+    }
+    try:
+        resp = requests.post(cliente.make_webhook_url, json=payload, timeout=30)
+        print(f"Status: {resp.status_code}")
+        print(f"Resposta: {resp.text}")
+    except Exception as e:
+        print(f"ERRO: {e}")
+PY;
+    $tmp = tempnam('/tmp', 'testwh_') . '.py';
+    file_put_contents($tmp, $script);
+    $out = shell_exec("cd $DIR && $PYTHON $tmp 2>&1");
+    unlink($tmp);
+    echo $out;
+    echo "\n=== Teste concluído ===\n";
+    exit;
+}
+
 // ── Limpar imagens de uploads ─────────────────────────────────────────────────
 if ($action === 'clean-uploads') {
     $uploads = "$DIR/static/uploads";
