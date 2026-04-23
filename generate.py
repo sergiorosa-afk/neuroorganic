@@ -479,9 +479,10 @@ def _gerar_imagem_imagen3(prompt):
         api_key=os.environ['GEMINI_API_KEY'],
         http_options={'api_version': 'v1alpha'},
     )
+    portrait_prompt = f"{prompt} Portrait orientation, 3:4 aspect ratio (taller than wide), optimized for Instagram feed post."
     response = client.models.generate_content(
         model='gemini-2.5-flash-image',
-        contents=prompt,
+        contents=portrait_prompt,
         config=types.GenerateContentConfig(
             response_modalities=['IMAGE'],
         ),
