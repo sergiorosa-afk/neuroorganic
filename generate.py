@@ -319,9 +319,9 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
         end = -1 if lines[-1].strip() == "```" else len(lines)
         text = "\n".join(lines[start:end])
 
-    # Remove invalid control characters (except \n \r \t) that break json.loads
+    # Remove all control characters except \t (\x09) and \n (\x0a)
     import re
-    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+    text = re.sub(r'[\x00-\x08\x0b-\x1f\x7f]', '', text)
 
     data = json.loads(text)
     return data["titulo"], data["legenda"], data["prompt_imagem"]
