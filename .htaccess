@@ -1,0 +1,10 @@
+PassengerEnabled On
+PassengerAppRoot /home3/fionco36/neuroseller.com.br/neuroorganic
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*)$ passenger_wsgi.py/$1 [QSA,L]
+</IfModule>
