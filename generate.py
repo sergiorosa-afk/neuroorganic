@@ -278,7 +278,7 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
     )
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash-preview-04-17",
+        model="gemini-2.5-flash",
         contents=user_message,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
