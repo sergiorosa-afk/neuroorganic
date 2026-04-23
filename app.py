@@ -273,6 +273,39 @@ def preview_planejamento():
     return render_template('admin/planejamento.html', cliente_sel=cliente, preview=preview)
 
 
+@app.route('/planejamento/gerar-ia', methods=['POST'])
+@login_required
+def gerar_planejamento_ia():
+    from datetime import date as _date, timedelta
+    from generate import gerar_planejamento_ia as _gerar
+
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return jsonify(error='Empresa não selecionada'), 400
+
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    data_str = request.form.get('segunda_feira', '').strip()
+    try:
+        if data_str:
+            segunda = _date.fromisoformat(data_str)
+            if segunda.weekday() != 0:
+                from datetime import timedelta as _td
+                segunda = segunda - _td(days=segunda.weekday())
+        else:
+            hoje = _date.today()
+            dias_ate_segunda = (7 - hoje.weekday()) % 7 or 7
+            segunda = hoje + timedelta(days=dias_ate_segunda)
+    except ValueError:
+        return jsonify(error='Data inválida'), 400
+
+    try:
+        texto = _gerar(cliente, segunda)
+        return jsonify(ok=True, texto=texto)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
 @app.route('/planejamento/gerar', methods=['POST'])
 @login_required
 def gerar_do_planejamento():

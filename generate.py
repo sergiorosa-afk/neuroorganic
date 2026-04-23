@@ -2,7 +2,7 @@ import os
 import json
 import uuid
 import requests
-from datetime import date
+from datetime import date, timedelta
 
 import fal_client
 from google import genai
@@ -651,3 +651,109 @@ def gerar_do_planejamento(cliente, entry):
     db.session.add(post)
     db.session.commit()
     return post
+
+
+# ── Geração de planejamento semanal via IA ────────────────────────────────────
+
+_MESES_BR = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro',
+}
+
+_DIAS_NOME_BR = {
+    0: 'Segunda-feira', 1: 'Terça-feira', 2: 'Quarta-feira',
+    3: 'Quinta-feira', 4: 'Sexta-feira',
+}
+
+_CALENDARIO_BR = """
+Janeiro: Confraternização Universal (1/jan), preparação para Carnaval
+Fevereiro/Março: Carnaval (data variável — terça gorda e quarta de cinzas), Dia Internacional da Mulher (8/mar)
+Abril: Páscoa (variável — domingo), Tiradentes (21/abr), véspera do Dia do Trabalho
+Maio: Dia do Trabalho (1/mai), Dia das Mães (2º domingo de maio), Dia do Estudante (11/mai)
+Junho: Corpus Christi (variável), Dia dos Namorados (12/jun), Festas Juninas (todo o mês), Dia do Meio Ambiente (5/jun)
+Julho: Férias escolares (julho inteiro), Dia do Amigo (20/jul)
+Agosto: Dia dos Pais (2º domingo de agosto), Dia dos Solteiros (15/ago), Dia do Folclore (22/ago)
+Setembro: Independência do Brasil (7/set), Dia do Cliente (15/set), Início da Primavera (22 ou 23/set)
+Outubro: Dia das Crianças (12/out), Dia dos Professores (15/out), Halloween (31/out)
+Novembro: Finados (2/nov), Proclamação da República (15/nov), Consciência Negra (20/nov), Black Friday (última sexta de novembro)
+Dezembro: Natal (25/dez), Réveillon (31/dez), festas e confraternizações de fim de ano (todo dezembro)
+"""
+
+
+def gerar_planejamento_ia(cliente, segunda_feira):
+    """Generate a Mon–Fri weekly content plan using Gemini AI.
+
+    Args:
+        cliente: Cliente model instance
+        segunda_feira: date object for Monday of the target week
+
+    Returns:
+        str — formatted planejamento text ready to paste into the editor
+    """
+    from models import PromptEstilo
+
+    dias = []
+    for i in range(5):
+        dia = segunda_feira + timedelta(days=i)
+        dia_key = DIAS_MAP[dia.weekday()]
+        pe = PromptEstilo.query.filter_by(
+            cliente_id=cliente.id, dia_semana=dia_key, ativo=True
+        ).first()
+        dias.append({
+            'data': dia,
+            'nome': _DIAS_NOME_BR[dia.weekday()],
+            'intencao': pe.intencao if pe else None,
+        })
+
+    mes_nome = _MESES_BR[segunda_feira.month]
+    ano = segunda_feira.year
+    contexto = cliente.contexto or ''
+
+    dias_txt = ''
+    for d in dias:
+        intencao_str = f'\n    Intenção configurada: {d["intencao"]}' if d['intencao'] else ''
+        dias_txt += f'  • {d["nome"]} — {d["data"].strftime("%d/%m/%Y")}{intencao_str}\n'
+
+    system_prompt = f"""Você é especialista em planejamento de conteúdo para Instagram no mercado brasileiro.
+
+## Contexto da empresa (PRIORIDADE MÁXIMA — siga rigorosamente)
+{contexto if contexto else 'Empresa sem contexto definido — crie conteúdo profissional e envolvente.'}
+
+## Calendário brasileiro de datas comemorativas e sazonalidade
+{_CALENDARIO_BR}
+
+## Regras de criação
+- Analise o mês e os dias solicitados — verifique datas comemorativas e sazonalidade
+- Se houver data relevante para a marca naquele dia, incorpore-a naturalmente
+- Se não houver, siga a intenção configurada ou crie conteúdo alinhado ao contexto da empresa
+- Títulos: máximo 80 caracteres, gancho irresistível, psicologia de persuasão
+- Legendas: 300–500 caracteres, primeiro parágrafo é o hook principal, CTA implícito no final
+- Mantenha a voz, o estilo e o público definidos no contexto da empresa
+
+## FORMATO DE SAÍDA — retorne EXATAMENTE assim, sem nenhum texto antes ou depois:
+DD/MM/AAAA - Titulo: Título aqui
+Legenda: Legenda completa aqui...
+
+DD/MM/AAAA - Titulo: Próximo título
+Legenda: Próxima legenda...
+
+(5 entradas no total, uma por linha, separadas por linha em branco)"""
+
+    user_message = (
+        f"Crie o planejamento da semana de {segunda_feira.strftime('%d/%m/%Y')} "
+        f"({mes_nome}/{ano}).\n\n"
+        f"Dias a preencher:\n{dias_txt}\n"
+        f"Retorne exatamente 5 posts no formato especificado."
+    )
+
+    client = _gemini_client(api_key=cliente.gemini_api_key)
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=user_message,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=0.85,
+        ),
+    )
+    return response.text.strip()

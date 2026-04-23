@@ -1,10 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Planejamento — Admin{% endblock %}
+{% block title %}Planejamento — {{ cliente_sel.nome }}{% endblock %}
 
 {% block content %}
 <div class="mb-6">
     <h1 class="text-xl font-bold text-gray-900">Planejamento de Posts</h1>
     <p class="text-sm text-gray-500">{{ cliente_sel.nome }} — @{{ cliente_sel.instagram_handle }}</p>
+</div>
+
+<!-- Gerar com IA -->
+<div class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+            <h2 class="font-semibold text-gray-800">Gerar Planejamento Semanal com IA</h2>
+            <p class="text-xs text-gray-500 mt-0.5">O Gemini cria títulos e legendas para Seg–Sex levando em conta contexto da marca, mês e feriados brasileiros.</p>
+        </div>
+        <div class="flex items-center gap-3 flex-shrink-0">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Semana a partir de (Segunda)</label>
+                <input type="date" id="segunda-input"
+                    class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+            </div>
+            <button type="button" id="btn-gerar-ia" onclick="gerarComIA()"
+                class="mt-5 px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition flex items-center gap-2">
+                <span id="ia-label">✦ Gerar Planejamento</span>
+                <span id="ia-spinner" class="hidden">Gerando com IA...</span>
+            </button>
+        </div>
+    </div>
+    <div id="ia-erro" class="hidden mt-3 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg"></div>
 </div>
 
 <!-- Formato -->
@@ -86,7 +109,7 @@ Legenda: Outra legenda...</pre>
         {% endfor %}
     </div>
 
-    {% set novos = preview | selectattr('ja_existe', 'equalto', false) | list %}
+    {% set novos = preview | selectattr('ja_existe', 'equalto', false) | selectattr('fim_de_semana', 'equalto', false) | list %}
     {% if novos %}
     <div class="flex justify-end">
         <button type="button"
@@ -108,17 +131,31 @@ Legenda: Outra legenda...</pre>
 {% endif %}
 
 <script>
+// Default date input to next Monday
+(function() {
+    const input = document.getElementById('segunda-input');
+    const hoje = new Date();
+    const diaSemana = hoje.getDay(); // 0=sun, 1=mon...
+    const diasAteSegunda = diaSemana === 0 ? 1 : (8 - diaSemana);
+    const proxSegunda = new Date(hoje);
+    proxSegunda.setDate(hoje.getDate() + diasAteSegunda);
+    input.value = proxSegunda.toISOString().slice(0, 10);
+})();
+
 function getText() {
     return document.getElementById('planejamento-textarea').value;
 }
+
 function salvar() {
     document.getElementById('hidden-salvar').value = getText();
     document.getElementById('form-salvar').submit();
 }
+
 function verPreview() {
     document.getElementById('hidden-preview').value = getText();
     document.getElementById('form-preview').submit();
 }
+
 function gerarSemana() {
     const btn = document.getElementById('btn-gerar');
     document.getElementById('btn-label').classList.add('hidden');
@@ -126,6 +163,52 @@ function gerarSemana() {
     btn.disabled = true;
     document.getElementById('hidden-gerar').value = getText();
     document.getElementById('form-gerar').submit();
+}
+
+function gerarComIA() {
+    const btn = document.getElementById('btn-gerar-ia');
+    const label = document.getElementById('ia-label');
+    const spinner = document.getElementById('ia-spinner');
+    const erroDiv = document.getElementById('ia-erro');
+    const segunda = document.getElementById('segunda-input').value;
+
+    if (!segunda) {
+        erroDiv.textContent = 'Selecione a data de início da semana.';
+        erroDiv.classList.remove('hidden');
+        return;
+    }
+
+    btn.disabled = true;
+    label.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    erroDiv.classList.add('hidden');
+
+    const formData = new FormData();
+    formData.append('segunda_feira', segunda);
+
+    fetch('{{ url_for("gerar_planejamento_ia") }}', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            document.getElementById('planejamento-textarea').value = data.texto;
+            document.getElementById('planejamento-textarea').scrollIntoView({ behavior: 'smooth' });
+        } else {
+            erroDiv.textContent = 'Erro: ' + (data.error || 'falha desconhecida');
+            erroDiv.classList.remove('hidden');
+        }
+    })
+    .catch(e => {
+        erroDiv.textContent = 'Erro de conexão: ' + e.message;
+        erroDiv.classList.remove('hidden');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        label.classList.remove('hidden');
+        spinner.classList.add('hidden');
+    });
 }
 </script>
 {% endblock %}
