@@ -5,6 +5,11 @@ PassengerStartupFile passenger_wsgi.py
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteCond %{REQUEST_FILENAME} !-f
+    # Leave PHP files and static files alone
+    RewriteCond %{REQUEST_FILENAME} \.php$ [OR]
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    # Everything else goes to Passenger
     RewriteRule ^(.*)$ passenger_wsgi.py/$1 [QSA,L]
 </IfModule>
