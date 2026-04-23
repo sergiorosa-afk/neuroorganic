@@ -279,6 +279,41 @@ def regerar_post(post):
     return novo_post
 
 
+def _fix_json(text):
+    """Escape literal control characters inside JSON string values."""
+    if text.startswith("```"):
+        lines = text.splitlines()
+        start = 1 if lines[0].startswith("```") else 0
+        end = -1 if lines[-1].strip() == "```" else len(lines)
+        text = "\n".join(lines[start:end])
+
+    result = []
+    in_string = False
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == '\\' and in_string:
+            result.append(c)
+            i += 1
+            if i < len(text):
+                result.append(text[i])
+            i += 1
+            continue
+        if c == '"':
+            in_string = not in_string
+            result.append(c)
+        elif in_string and c == '\n':
+            result.append('\\n')
+        elif in_string and c == '\r':
+            result.append('\\r')
+        elif in_string and ord(c) < 0x20 and c != '\t':
+            pass  # drop other control chars
+        else:
+            result.append(c)
+        i += 1
+    return ''.join(result)
+
+
 def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo_anterior=None, contexto=""):
     """Call Gemini API to generate title, caption, and refined image prompt."""
     feedback_ctx = ""
@@ -311,19 +346,7 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
     )
 
     text = response.text.strip()
-
-    # Strip markdown code fences if Gemini wraps the JSON
-    if text.startswith("```"):
-        lines = text.splitlines()
-        start = 1 if lines[0].startswith("```") else 0
-        end = -1 if lines[-1].strip() == "```" else len(lines)
-        text = "\n".join(lines[start:end])
-
-    # Remove all control characters except \t (\x09) and \n (\x0a)
-    import re
-    text = re.sub(r'[\x00-\x08\x0b-\x1f\x7f]', '', text)
-
-    data = json.loads(text)
+    data = json.loads(_fix_json(text))
     return data["titulo"], data["legenda"], data["prompt_imagem"]
 
 
