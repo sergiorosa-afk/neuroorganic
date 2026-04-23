@@ -97,6 +97,31 @@ PY;
     exit;
 }
 
+// ── Limpar todos os posts ─────────────────────────────────────────────────────
+if ($action === 'truncate-posts') {
+    $env_file = "$DIR/.env";
+    $script = <<<PY
+import os, sys
+sys.path.insert(0, '$DIR')
+from dotenv import load_dotenv
+load_dotenv('$env_file')
+from app import app
+from models import db
+
+with app.app_context():
+    result = db.session.execute(db.text("DELETE FROM posts"))
+    db.session.commit()
+    print(f"OK: {result.rowcount} posts deletados")
+PY;
+    $tmp = tempnam('/tmp', 'truncate_') . '.py';
+    file_put_contents($tmp, $script);
+    $out = shell_exec("cd $DIR && $PYTHON $tmp 2>&1");
+    unlink($tmp);
+    echo $out;
+    echo "\n=== Posts removidos ===\n";
+    exit;
+}
+
 // ── Migração: adiciona colunas novas sem recriar tabelas ─────────────────────
 if ($action === 'migrate') {
     $env_file = "$DIR/.env";
