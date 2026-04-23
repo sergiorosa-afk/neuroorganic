@@ -97,6 +97,41 @@ PY;
     exit;
 }
 
+// ── Migração: adiciona colunas novas sem recriar tabelas ─────────────────────
+if ($action === 'migrate') {
+    $env_file = "$DIR/.env";
+    $script = <<<PY
+import os, sys
+sys.path.insert(0, '$DIR')
+from dotenv import load_dotenv
+load_dotenv('$env_file')
+from app import app
+from models import db
+
+migrations = [
+    "ALTER TABLE clientes ADD COLUMN contexto MEDIUMTEXT",
+    "CREATE TABLE IF NOT EXISTS configuracoes (chave VARCHAR(50) PRIMARY KEY, valor VARCHAR(255) NOT NULL)",
+]
+
+with app.app_context():
+    for sql in migrations:
+        try:
+            db.session.execute(db.text(sql))
+            db.session.commit()
+            print(f"OK: {sql[:60]}")
+        except Exception as e:
+            db.session.rollback()
+            print(f"Skip: {e}")
+PY;
+    $tmp = tempnam('/tmp', 'migrate_') . '.py';
+    file_put_contents($tmp, $script);
+    $out = shell_exec("cd $DIR && $PYTHON $tmp 2>&1");
+    unlink($tmp);
+    echo $out;
+    echo "\n=== Migração concluída ===\n";
+    exit;
+}
+
 // ── Inicializar banco de dados ────────────────────────────────────────────────
 if ($action === 'init') {
     if (!file_exists("$DIR/.env")) {
