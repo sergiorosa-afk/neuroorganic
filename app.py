@@ -515,7 +515,7 @@ def api_posts_publicar():
             'marcar_publicado_url': f"{base}/api/posts/{p.id}/publicado?token={os.environ.get('CRON_SECRET', 'token123')}",
         })
 
-    return jsonify(total=len(result), data=alvo.strftime('%d/%m/%Y'), posts=result)
+    return jsonify(result)
 
 
 @app.route('/api/posts/<int:post_id>/publicado', methods=['POST', 'GET'])
