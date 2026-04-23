@@ -99,6 +99,7 @@ if ($action === 'init') {
 // ── Git pull ──────────────────────────────────────────────────────────────────
 cmd('Git Reset', "cd $DIR && git checkout -- . && git clean -fd");
 cmd('Git Pull', "cd $DIR && git pull origin main");
+cmd('chmod app.cgi', "chmod 755 $DIR/public/app.cgi");
 
 // ── Setup venv + dependências ─────────────────────────────────────────────────
 if ($action === 'full' || $action === 'pip') {
