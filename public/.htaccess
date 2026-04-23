@@ -2,3 +2,4 @@ PassengerEnabled On
 PassengerAppRoot /home3/fionco36/neuroseller.com.br/neuroorganic
 PassengerStartupFile passenger_wsgi.py
 PassengerAppType wsgi
+PassengerPython /home3/fionco36/neuroseller.com.br/neuroorganic/venv/bin/python3.9
