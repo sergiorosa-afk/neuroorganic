@@ -141,7 +141,7 @@ def salvar_prompt():
     intencao = request.form.get('intencao', '').strip()
     prompt_imagem = request.form.get('prompt_imagem', '').strip()
     texto_subheadline = request.form.get('texto_subheadline', '').strip()
-    texto_cta = request.form.get('texto_cta', '').strip() or 'Acesse o link na bio'
+    texto_cta = request.form.get('texto_cta', '').strip()
 
     prompt = PromptEstilo.query.filter_by(cliente_id=cliente_id, dia_semana=dia).first()
     if prompt:
