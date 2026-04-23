@@ -478,7 +478,10 @@ def _gerar_imagem_fal(prompt):
 
 def _gerar_imagem_imagen3(prompt):
     """Generate image via Google Imagen 3. Requires GEMINI_API_KEY env var."""
-    client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+    client = genai.Client(
+        api_key=os.environ['GEMINI_API_KEY'],
+        http_options={'api_version': 'v1alpha'},
+    )
     response = client.models.generate_images(
         model='imagen-3.0-generate-002',
         prompt=prompt,
