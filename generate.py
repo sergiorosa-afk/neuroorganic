@@ -477,20 +477,22 @@ def _gerar_imagem_fal(prompt):
 
 
 def _gerar_imagem_imagen3(prompt):
-    """Generate image via Google Imagen 3. Requires GEMINI_API_KEY env var."""
+    """Generate image via Gemini image model. Requires GEMINI_API_KEY env var."""
     client = genai.Client(
         api_key=os.environ['GEMINI_API_KEY'],
         http_options={'api_version': 'v1alpha'},
     )
-    response = client.models.generate_images(
-        model='imagen-3.0-generate-002',
-        prompt=prompt,
-        config=types.GenerateImagesConfig(
-            number_of_images=1,
-            aspect_ratio='1:1',
+    response = client.models.generate_content(
+        model='gemini-2.5-flash-image',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=['IMAGE'],
         ),
     )
-    return response.generated_images[0].image.image_bytes
+    for part in response.candidates[0].content.parts:
+        if getattr(part, 'inline_data', None) is not None:
+            return part.inline_data.data
+    raise ValueError('Nenhuma imagem retornada pelo modelo')
 
 
 def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None):
