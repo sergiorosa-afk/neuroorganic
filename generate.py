@@ -321,6 +321,22 @@ def _prompt_sem_texto(prompt):
     )
 
 
+def _crop_portrait(filepath, ratio=(3, 4)):
+    """Crop image to portrait ratio from center. Default 3:4 for Instagram."""
+    from PIL import Image
+    img = Image.open(filepath)
+    w, h = img.size
+    target_w = int(h * ratio[0] / ratio[1])
+    if target_w < w:
+        left = (w - target_w) // 2
+        img = img.crop((left, 0, left + target_w, h))
+    elif h < int(w * ratio[1] / ratio[0]):
+        target_h = int(w * ratio[1] / ratio[0])
+        top = (h - target_h) // 2
+        img = img.crop((0, max(top, 0), w, max(top, 0) + target_h))
+    img.save(filepath, "JPEG", quality=93)
+
+
 def _logo_filepath(logo_url):
     """Convert a /static/... URL to an absolute file path, or return None."""
     if not logo_url:
@@ -521,6 +537,8 @@ def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta
         resp.raise_for_status()
         with open(filepath, 'wb') as f:
             f.write(resp.content)
+
+    _crop_portrait(filepath)
 
     if titulo:
         compor_texto_na_imagem(filepath, titulo, subheadline=subheadline, cta=cta or "", logo_path=logo_path)
