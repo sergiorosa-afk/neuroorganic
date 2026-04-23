@@ -123,7 +123,10 @@ Any text outside this JSON structure will cause a system error. Respond with pur
 
 
 def _gemini_client():
-    return genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+    return genai.Client(
+        api_key=os.environ['GEMINI_API_KEY'],
+        http_options={'api_version': 'v1alpha'},
+    )
 
 
 def gerar_posts_hoje(data=None):
