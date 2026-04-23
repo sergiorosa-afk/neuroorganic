@@ -75,6 +75,28 @@ if ($action === 'setup-env') {
     exit;
 }
 
+// ── Listar modelos Gemini disponíveis ─────────────────────────────────────────
+if ($action === 'list-models') {
+    $env_file = "$DIR/.env";
+    $script = <<<PY
+import os
+from dotenv import load_dotenv
+load_dotenv('$env_file')
+from google import genai
+client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+for m in client.models.list():
+    if 'generateContent' in (m.supported_actions or []):
+        print(m.name)
+PY;
+    $tmp = tempnam('/tmp', 'gmodels_') . '.py';
+    file_put_contents($tmp, $script);
+    $out = shell_exec("$PYTHON $tmp 2>&1");
+    unlink($tmp);
+    echo $out;
+    echo "\n=== Concluído ===\n";
+    exit;
+}
+
 // ── Inicializar banco de dados ────────────────────────────────────────────────
 if ($action === 'init') {
     if (!file_exists("$DIR/.env")) {
