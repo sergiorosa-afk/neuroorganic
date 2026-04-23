@@ -77,6 +77,7 @@ if ($action === 'init') {
 }
 
 // ── Git pull ──────────────────────────────────────────────────────────────────
+cmd('Git Reset', "cd $DIR && git checkout -- . && git clean -fd");
 cmd('Git Pull', "cd $DIR && git pull origin main");
 
 // ── Setup venv + dependências ─────────────────────────────────────────────────
