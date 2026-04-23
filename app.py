@@ -306,46 +306,6 @@ def gerar_planejamento_ia():
         return jsonify(error=str(e)), 500
 
 
-@app.route('/planejamento/gerar', methods=['POST'])
-@login_required
-def gerar_do_planejamento():
-    import threading
-    from generate import parsear_planejamento, gerar_do_planejamento as _gerar
-
-    cliente_id, redir = _get_cliente_id()
-    if redir:
-        return redir
-    cliente = Cliente.query.get_or_404(cliente_id)
-    texto = request.form.get('planejamento_texto', '').strip()
-
-    if texto:
-        cliente.planejamento_texto = texto
-        db.session.commit()
-
-    entries = parsear_planejamento(cliente.planejamento_texto or '')
-    novos = [e for e in entries if e['data'].weekday() < 5]
-
-    if not novos:
-        flash('Nenhuma entrada válida encontrada.', 'error')
-        return redirect(url_for('admin_planejamento'))
-
-    def _worker(app_ctx, entries, cliente_id):
-        with app_ctx:
-            from generate import gerar_do_planejamento as _g
-            cliente_obj = Cliente.query.get(cliente_id)
-            for entry in entries:
-                try:
-                    _g(cliente_obj, entry)
-                    print(f"[bg] ✓ {entry['data']} — {entry['titulo'][:50]}")
-                except Exception as e:
-                    print(f"[bg] erro {entry['data']}: {e}")
-
-    t = threading.Thread(target=_worker, args=(app.app_context(), novos, cliente_id), daemon=True)
-    t.start()
-
-    flash(f'Gerando {len(novos)} criativo(s) em segundo plano. Atualize o dashboard em instantes.', 'success')
-    return redirect(url_for('dashboard'))
-
 
 @app.route('/cliente/<int:cliente_id>/contexto', methods=['POST'])
 @login_required

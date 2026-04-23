@@ -52,11 +52,6 @@ Legenda: Outra legenda...</pre>
     <input type="hidden" name="planejamento_texto" id="hidden-preview">
 </form>
 
-<form method="POST" action="{{ url_for('gerar_do_planejamento') }}" id="form-gerar">
-    <input type="hidden" name="cliente_id" value="{{ cliente_sel.id }}">
-    <input type="hidden" name="planejamento_texto" id="hidden-gerar">
-</form>
-
 <!-- Editor -->
 <div class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
     <textarea id="planejamento-textarea" rows="16"
@@ -111,14 +106,9 @@ Legenda: Outra legenda...</pre>
 
     {% set novos = preview | selectattr('ja_existe', 'equalto', false) | selectattr('fim_de_semana', 'equalto', false) | list %}
     {% if novos %}
-    <div class="flex justify-end">
-        <button type="button"
-            onclick="gerarSemana()"
-            id="btn-gerar"
-            class="px-7 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition flex items-center gap-2">
-            <span id="btn-label">Gerar {{ novos|length }} criativo{{ 's' if novos|length != 1 else '' }} da semana</span>
-            <span id="btn-spinner" class="hidden">Gerando...</span>
-        </button>
+    <div class="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3 text-sm text-indigo-800">
+        <p class="font-semibold mb-1">{{ novos|length }} post{{ 's' if novos|length != 1 else '' }} pronto{{ 's' if novos|length != 1 else '' }} para gerar criativo</p>
+        <p>Use o botão <strong>✦ Gerar Post</strong> na barra de navegação, selecionando cada data individualmente.</p>
     </div>
     {% else %}
     <p class="text-sm text-yellow-700 text-center py-2">Todos os posts desta semana já foram gerados.</p>
@@ -156,14 +146,6 @@ function verPreview() {
     document.getElementById('form-preview').submit();
 }
 
-function gerarSemana() {
-    const btn = document.getElementById('btn-gerar');
-    document.getElementById('btn-label').classList.add('hidden');
-    document.getElementById('btn-spinner').classList.remove('hidden');
-    btn.disabled = true;
-    document.getElementById('hidden-gerar').value = getText();
-    document.getElementById('form-gerar').submit();
-}
 
 function gerarComIA() {
     const btn = document.getElementById('btn-gerar-ia');
