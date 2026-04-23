@@ -308,7 +308,7 @@ def _pollinations_url(cliente_id, dia_semana, prompt):
     seed = abs(hash(f"{cliente_id}_{dia_semana}")) % 99999
     return (
         f"https://image.pollinations.ai/prompt/{encoded}"
-        f"?width=1024&height=1024&seed={seed}&model=flux&nologo=true"
+        f"?width=1024&height=1365&seed={seed}&model=flux&nologo=true"
     )
 
 
@@ -462,7 +462,7 @@ def _gerar_imagem_fal(prompt):
         "fal-ai/flux-realism",
         arguments={
             "prompt": prompt,
-            "image_size": "square_hd",
+            "image_size": "portrait_4_3",
             "num_images": 1,
             "enable_safety_checker": False,
         },
