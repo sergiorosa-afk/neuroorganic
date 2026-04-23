@@ -11,6 +11,7 @@ class Cliente(db.Model):
     nome = db.Column(db.String(100), nullable=False)
     instagram_handle = db.Column(db.String(50), nullable=False)
     make_webhook_url = db.Column(db.Text)
+    gemini_api_key = db.Column(db.Text)
     logo_url = db.Column(db.Text)
     planejamento_texto = db.Column(db.Text, default='')
     contexto = db.Column(db.Text, default='')

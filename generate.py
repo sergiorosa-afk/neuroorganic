@@ -75,31 +75,34 @@ def _build_system_prompt(contexto=""):
     )
 
 
-def _gemini_client():
+def _gemini_client(api_key=None):
+    key = api_key or os.environ['GEMINI_API_KEY']
     return genai.Client(
-        api_key=os.environ['GEMINI_API_KEY'],
+        api_key=key,
         http_options={'api_version': 'v1alpha'},
     )
 
 
-def gerar_posts_hoje(data=None):
-    """Generate posts for all active clients for the given date (default: today).
+def gerar_posts_hoje(data=None, cliente_id=None):
+    """Generate posts for active clients for the given date (default: today).
 
-    Skips only if a non-rejected post already exists for that date.
-    Must be called within a Flask application context.
+    If cliente_id is given, generates only for that client.
     Returns a list of created Post objects.
     """
     from models import db, Cliente, PromptEstilo, Post
 
     alvo = data or date.today()
     dia_num = alvo.weekday()
-    if dia_num not in DIAS_MAP:
-        print(f"{alvo} não é dia útil (seg–sex). Nada gerado.")
+    if dia_num >= 5:
+        print(f"{alvo} é fim de semana. Nada gerado.")
         return []
 
     dia_semana = DIAS_MAP[dia_num]
-    clientes = Cliente.query.filter_by(ativo=True).all()
-    client = _gemini_client()
+    if cliente_id:
+        c = Cliente.query.get(cliente_id)
+        clientes = [c] if c and c.ativo else []
+    else:
+        clientes = Cliente.query.filter_by(ativo=True).all()
     gerados = []
 
     for cliente in clientes:
@@ -131,6 +134,7 @@ def gerar_posts_hoje(data=None):
             cta = prompt_estilo.texto_cta or ""
             logo_path = _logo_filepath(cliente.logo_url)
             contexto = cliente.contexto or ""
+            gemini_client = _gemini_client(api_key=cliente.gemini_api_key)
 
             if entry_planejada:
                 print(f"[{cliente.nome}] Usando planejamento para {alvo}...")
@@ -142,7 +146,7 @@ def gerar_posts_hoje(data=None):
             else:
                 print(f"[{cliente.nome}] Gerando conteúdo via IA ({dia_semana})...")
                 titulo, legenda, prompt_img = _gerar_texto(
-                    client, prompt_estilo.intencao, prompt_estilo.prompt_imagem,
+                    gemini_client, prompt_estilo.intencao, prompt_estilo.prompt_imagem,
                     contexto=contexto,
                 )
 
@@ -150,7 +154,8 @@ def gerar_posts_hoje(data=None):
             imagem_url = _gerar_imagem(cliente.id, dia_semana, prompt_img,
                                        titulo=titulo, subheadline=subheadline,
                                        cta=cta, logo_path=logo_path,
-                                       contexto=contexto)
+                                       contexto=contexto,
+                                       api_key=cliente.gemini_api_key)
 
             post = Post(
                 cliente_id=cliente.id,
@@ -193,7 +198,7 @@ def regerar_post(post):
     if not prompt_estilo:
         raise ValueError(f"Sem prompt ativo para {post.dia_semana}")
 
-    client = _gemini_client()
+    client = _gemini_client(api_key=post.cliente.gemini_api_key)
 
     contexto = post.cliente.contexto or ""
     titulo, legenda, prompt_img = _gerar_texto(
@@ -210,7 +215,8 @@ def regerar_post(post):
     logo_path = _logo_filepath(post.cliente.logo_url)
     imagem_url = _gerar_imagem(post.cliente_id, post.dia_semana, prompt_img,
                                titulo=titulo, subheadline=subheadline,
-                               cta=cta, logo_path=logo_path, contexto=contexto)
+                               cta=cta, logo_path=logo_path, contexto=contexto,
+                               api_key=post.cliente.gemini_api_key)
 
     if post.status == 'pendente':
         post.status = 'reprovado'
@@ -489,10 +495,10 @@ def _gerar_imagem_fal(prompt):
     return resp.content
 
 
-def _gerar_imagem_imagen3(prompt):
-    """Generate image via Gemini image model. Requires GEMINI_API_KEY env var."""
+def _gerar_imagem_imagen3(prompt, api_key=None):
+    """Generate image via Gemini image model. Uses client API key if provided."""
     client = genai.Client(
-        api_key=os.environ['GEMINI_API_KEY'],
+        api_key=api_key or os.environ['GEMINI_API_KEY'],
         http_options={'api_version': 'v1alpha'},
     )
     portrait_prompt = f"{prompt} Portrait orientation, 3:4 aspect ratio (taller than wide), optimized for Instagram feed post."
@@ -509,7 +515,7 @@ def _gerar_imagem_imagen3(prompt):
     raise ValueError('Nenhuma imagem retornada pelo modelo')
 
 
-def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None, contexto=""):
+def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None, contexto="", api_key=None):
     """Generate image using configured provider, then compose text overlay."""
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_dir, exist_ok=True)
@@ -522,7 +528,7 @@ def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta
     provedor = _get_provedor()
 
     if provedor == 'imagen3':
-        image_bytes = _gerar_imagem_imagen3(clean_prompt)
+        image_bytes = _gerar_imagem_imagen3(clean_prompt, api_key=api_key)
         with open(filepath, 'wb') as f:
             f.write(image_bytes)
 
@@ -595,8 +601,7 @@ def gerar_do_planejamento(cliente, entry):
     from models import db, PromptEstilo, Post
 
     dia_num = entry['data'].weekday()
-    if dia_num not in DIAS_MAP:
-        # Weekend — skip silently
+    if dia_num >= 5:
         raise ValueError(f"{entry['data'].strftime('%d/%m/%Y')} é fim de semana, pulando.")
 
     dia_semana = DIAS_MAP[dia_num]
@@ -630,6 +635,7 @@ def gerar_do_planejamento(cliente, entry):
         prompt_img,
         titulo=entry['titulo'],
         logo_path=logo_path,
+        api_key=cliente.gemini_api_key,
     )
 
     post = Post(

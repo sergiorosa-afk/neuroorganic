@@ -1,17 +1,35 @@
 {% extends 'base.html' %}
-{% block title %}Configurações — Admin{% endblock %}
+{% block title %}Configurações{% endblock %}
 
 {% block content %}
 <div class="mb-6">
     <h1 class="text-xl font-bold text-gray-900">Configurações</h1>
-    <p class="text-sm text-gray-500">Gerencie o provedor de geração de imagens</p>
+    <p class="text-sm text-gray-500">{{ cliente_sel.nome }} — @{{ cliente_sel.instagram_handle }}</p>
 </div>
 
-<div class="bg-white rounded-xl border border-gray-100 p-6 max-w-2xl">
-    <h2 class="font-semibold text-gray-800 mb-1">Provedor de imagens</h2>
-    <p class="text-xs text-gray-500 mb-5">Escolha qual serviço será usado ao gerar imagens para os posts.</p>
+<form method="POST" action="{{ url_for('admin_configuracoes') }}" class="space-y-5 max-w-2xl">
 
-    <form method="POST" action="{{ url_for('admin_configuracoes') }}">
+    <!-- Chave Gemini do cliente -->
+    <div class="bg-white rounded-xl border border-gray-100 p-6">
+        <h2 class="font-semibold text-gray-800 mb-1">Chave API do Gemini</h2>
+        <p class="text-xs text-gray-500 mb-4">Chave usada para gerar textos e imagens desta empresa. Se vazia, usa a chave global do servidor.</p>
+        <input type="text" name="gemini_api_key"
+            value="{{ cliente_sel.gemini_api_key or '' }}"
+            placeholder="AIza..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-300">
+        {% if cliente_sel.gemini_api_key %}
+        <p class="text-xs text-green-600 mt-2">✓ Chave própria configurada</p>
+        {% else %}
+        <p class="text-xs text-gray-400 mt-2">Usando chave global do servidor</p>
+        {% endif %}
+    </div>
+
+    {% if current_user.is_admin %}
+    <!-- Provedor de imagens — só admin -->
+    <div class="bg-white rounded-xl border border-gray-100 p-6">
+        <h2 class="font-semibold text-gray-800 mb-1">Provedor de imagens</h2>
+        <p class="text-xs text-gray-500 mb-5">Escolha qual serviço será usado ao gerar imagens (global para todos os clientes).</p>
+
         <div class="space-y-3 mb-6">
             {% for valor, nome, descricao, chave_env in provedores %}
             {% set chave_ok = (chave_env is none) or chaves.get(chave_env) %}
@@ -32,11 +50,8 @@
                     <p class="text-xs text-gray-500 mt-0.5">{{ descricao }}</p>
                     {% if chave_env %}
                     <p class="text-xs mt-1 {% if chaves.get(chave_env) %}text-green-600{% else %}text-red-500{% endif %}">
-                        {% if chaves.get(chave_env) %}
-                        ✓ {{ chave_env }} configurada
-                        {% else %}
-                        ✗ {{ chave_env }} não encontrada no .env
-                        {% endif %}
+                        {% if chaves.get(chave_env) %}✓ {{ chave_env }} configurada
+                        {% else %}✗ {{ chave_env }} não encontrada no .env{% endif %}
                     </p>
                     {% else %}
                     <p class="text-xs text-green-600 mt-1">✓ Sem chave necessária</p>
@@ -45,20 +60,12 @@
             </label>
             {% endfor %}
         </div>
-
-        <button type="submit"
-            class="px-5 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition">
-            Salvar configuração
-        </button>
-    </form>
-</div>
-
-<div class="mt-6 bg-white rounded-xl border border-gray-100 p-6 max-w-2xl">
-    <h2 class="font-semibold text-gray-800 mb-3">Como configurar as chaves API</h2>
-    <div class="space-y-2 text-sm text-gray-600">
-        <p><strong>FAL_KEY</strong> (Flux): obtenha em <span class="font-mono text-xs bg-gray-100 px-1 rounded">fal.ai</span> → My keys → Create key</p>
-        <p><strong>GEMINI_API_KEY</strong> (Imagen 3): obtenha em <span class="font-mono text-xs bg-gray-100 px-1 rounded">aistudio.google.com</span> → Get API key</p>
-        <p class="text-xs text-gray-400 mt-3">Após obter a chave, use o deploy.php com <span class="font-mono bg-gray-100 px-1 rounded">action=setup-env</span> para salvá-la no servidor.</p>
     </div>
-</div>
+    {% endif %}
+
+    <button type="submit"
+        class="px-5 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition">
+        Salvar configurações
+    </button>
+</form>
 {% endblock %}

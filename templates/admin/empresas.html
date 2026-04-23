@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Selecionar Empresa — Admin{% endblock %}
+
+{% block content %}
+<div class="mb-8 text-center">
+    <h1 class="text-2xl font-bold text-gray-900">Selecione a Empresa</h1>
+    <p class="text-sm text-gray-500 mt-1">Escolha o ambiente que deseja gerenciar</p>
+</div>
+
+{% if clientes %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+    {% for c in clientes %}
+    <form method="POST" action="{{ url_for('selecionar_empresa') }}">
+        <input type="hidden" name="cliente_id" value="{{ c.id }}">
+        <button type="submit" class="w-full text-left p-5 bg-white rounded-xl border-2 transition hover:border-indigo-400 hover:shadow-sm
+            {% if c.id == selected_id %}border-indigo-500 bg-indigo-50{% else %}border-gray-100{% endif %}">
+            <div class="flex items-start justify-between mb-3">
+                {% if c.logo_url %}
+                <img src="{{ c.logo_url }}" alt="Logo {{ c.nome }}" class="h-10 object-contain">
+                {% else %}
+                <div class="h-10 w-16 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400 font-medium">
+                    {{ c.nome[:2].upper() }}
+                </div>
+                {% endif %}
+                {% if c.id == selected_id %}
+                <span class="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Ativo</span>
+                {% endif %}
+            </div>
+            <p class="font-semibold text-gray-900">{{ c.nome }}</p>
+            <p class="text-sm text-gray-500 mt-0.5">@{{ c.instagram_handle }}</p>
+            <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                <span class="text-xs text-gray-400">
+                    {{ c.posts|length }} post(s)
+                </span>
+                <span class="text-xs font-medium {% if c.id == selected_id %}text-indigo-600{% else %}text-gray-400{% endif %}">
+                    {% if c.id == selected_id %}Entrar novamente →{% else %}Entrar →{% endif %}
+                </span>
+            </div>
+        </button>
+    </form>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-16">
+    <p class="text-gray-500 mb-4">Nenhuma empresa cadastrada ainda.</p>
+    <a href="{{ url_for('novo_cliente') }}"
+        class="px-5 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition">
+        Criar primeiro cliente
+    </a>
+</div>
+{% endif %}
+{% endblock %}

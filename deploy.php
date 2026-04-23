@@ -194,6 +194,7 @@ from models import db
 
 migrations = [
     "ALTER TABLE clientes ADD COLUMN contexto MEDIUMTEXT",
+    "ALTER TABLE clientes ADD COLUMN gemini_api_key TEXT",
     "CREATE TABLE IF NOT EXISTS configuracoes (chave VARCHAR(50) PRIMARY KEY, valor VARCHAR(255) NOT NULL)",
 ]
 

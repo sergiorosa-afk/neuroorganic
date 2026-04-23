@@ -12,23 +12,47 @@
 <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
     <div class="flex items-center gap-6">
         <span class="font-bold text-gray-800 text-lg">NeuroOrganic</span>
-        <a href="{{ url_for('dashboard') }}" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
+
         {% if current_user.is_admin %}
-        <a href="{{ url_for('admin_prompts') }}" class="text-sm text-gray-600 hover:text-gray-900">Prompts</a>
-        <a href="{{ url_for('admin_planejamento') }}" class="text-sm text-gray-600 hover:text-gray-900">Planejamento</a>
-        <a href="{{ url_for('admin_clientes') }}" class="text-sm text-gray-600 hover:text-gray-900">Clientes</a>
-        <a href="{{ url_for('admin_configuracoes') }}" class="text-sm text-gray-600 hover:text-gray-900">Configurações</a>
-        <form method="POST" action="{{ url_for('admin_gerar') }}" class="inline"
-              onsubmit="return confirm('Gerar posts para todos os clientes ativos hoje?')">
-            <button type="submit"
-                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                ✦ Gerar Posts
-            </button>
-        </form>
+            {% set cid = session.get('admin_cliente_id') %}
+            {% if cid %}
+            <a href="{{ url_for('dashboard') }}" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
+            <a href="{{ url_for('admin_prompts') }}" class="text-sm text-gray-600 hover:text-gray-900">Prompts</a>
+            <a href="{{ url_for('admin_planejamento') }}" class="text-sm text-gray-600 hover:text-gray-900">Planejamento</a>
+            <a href="{{ url_for('admin_configuracoes') }}" class="text-sm text-gray-600 hover:text-gray-900">Configurações</a>
+            <a href="{{ url_for('admin_clientes') }}" class="text-sm text-gray-600 hover:text-gray-900">Clientes</a>
+            <form method="POST" action="{{ url_for('admin_gerar') }}" class="inline"
+                  onsubmit="return confirm('Gerar post para esta empresa hoje?')">
+                <button type="submit" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                    ✦ Gerar Post
+                </button>
+            </form>
+            {% else %}
+            <a href="{{ url_for('admin_clientes') }}" class="text-sm text-gray-600 hover:text-gray-900">Clientes</a>
+            {% endif %}
+        {% else %}
+            <a href="{{ url_for('dashboard') }}" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
+            <a href="{{ url_for('admin_prompts') }}" class="text-sm text-gray-600 hover:text-gray-900">Prompts</a>
+            <a href="{{ url_for('admin_planejamento') }}" class="text-sm text-gray-600 hover:text-gray-900">Planejamento</a>
+            <a href="{{ url_for('admin_configuracoes') }}" class="text-sm text-gray-600 hover:text-gray-900">Configurações</a>
         {% endif %}
     </div>
     <div class="flex items-center gap-3">
+        {% if current_user.is_admin %}
+            {% set cid = session.get('admin_cliente_id') %}
+            {% if cid %}
+            <span class="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 font-medium">
+                {{ current_user.nome }}
+            </span>
+            <a href="{{ url_for('admin_empresas') }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                Trocar empresa
+            </a>
+            {% else %}
+            <span class="text-sm text-gray-500">{{ current_user.nome }}</span>
+            {% endif %}
+        {% else %}
         <span class="text-sm text-gray-500">{{ current_user.nome }}</span>
+        {% endif %}
         <a href="{{ url_for('logout') }}" class="text-sm text-red-500 hover:text-red-700">Sair</a>
     </div>
 </nav>

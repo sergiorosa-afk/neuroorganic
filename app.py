@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
 from models import db, Usuario, Cliente, PromptEstilo, Post, Configuracao, DIAS, DIAS_LABEL
@@ -19,11 +19,36 @@ def load_user(user_id):
     return Usuario.query.get(int(user_id))
 
 
+# ── Helpers multi-tenant ──────────────────────────────────────────────────────
+
+def _require_admin_cliente():
+    """For admin routes: returns (cliente_id, None) or (None, redirect_response)."""
+    cid = session.get('admin_cliente_id')
+    if not cid:
+        flash('Selecione uma empresa primeiro.', 'warning')
+        return None, redirect(url_for('admin_empresas'))
+    cliente = Cliente.query.get(cid)
+    if not cliente:
+        session.pop('admin_cliente_id', None)
+        flash('Empresa não encontrada. Selecione novamente.', 'warning')
+        return None, redirect(url_for('admin_empresas'))
+    return cid, None
+
+
+def _get_cliente_id():
+    """Returns (cliente_id, None) or (None, redirect_response) for admin+cliente routes."""
+    if current_user.is_admin:
+        return _require_admin_cliente()
+    return current_user.cliente_id, None
+
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
+        if current_user.is_admin:
+            return redirect(url_for('admin_empresas'))
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
@@ -33,6 +58,8 @@ def login():
 
         if usuario and usuario.check_senha(senha):
             login_user(usuario)
+            if usuario.is_admin:
+                return redirect(url_for('admin_empresas'))
             return redirect(url_for('dashboard'))
 
         flash('Email ou senha incorretos.', 'error')
@@ -43,24 +70,56 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    session.pop('admin_cliente_id', None)
     logout_user()
     return redirect(url_for('login'))
 
 
-# ── Dashboard (cliente vê só os próprios posts) ───────────────────────────────
+# ── Admin — Seletor de Empresa ────────────────────────────────────────────────
+
+@app.route('/admin/empresas')
+@login_required
+def admin_empresas():
+    if not current_user.is_admin:
+        abort(403)
+    clientes = Cliente.query.filter_by(ativo=True).order_by(Cliente.nome).all()
+    selected_id = session.get('admin_cliente_id')
+    return render_template('admin/empresas.html', clientes=clientes, selected_id=selected_id)
+
+
+@app.route('/admin/selecionar-empresa', methods=['POST'])
+@login_required
+def selecionar_empresa():
+    if not current_user.is_admin:
+        abort(403)
+    cliente_id = request.form.get('cliente_id', type=int)
+    cliente = Cliente.query.get_or_404(cliente_id)
+    session['admin_cliente_id'] = cliente_id
+    flash(f'Empresa {cliente.nome} selecionada.', 'success')
+    return redirect(url_for('dashboard'))
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if current_user.is_admin:
+        cliente_id, redir = _require_admin_cliente()
+        if redir:
+            return redir
+    else:
+        cliente_id = current_user.cliente_id
+
     posts = Post.query.filter_by(
-        cliente_id=current_user.cliente_id
+        cliente_id=cliente_id
     ).order_by(Post.created_at.desc()).limit(20).all()
 
     contadores = {
-        'pendente': Post.query.filter_by(cliente_id=current_user.cliente_id, status='pendente').count(),
-        'aprovado': Post.query.filter_by(cliente_id=current_user.cliente_id, status='aprovado').count(),
-        'publicado': Post.query.filter_by(cliente_id=current_user.cliente_id, status='publicado').count(),
-        'reprovado': Post.query.filter_by(cliente_id=current_user.cliente_id, status='reprovado').count(),
+        'pendente': Post.query.filter_by(cliente_id=cliente_id, status='pendente').count(),
+        'aprovado': Post.query.filter_by(cliente_id=cliente_id, status='aprovado').count(),
+        'publicado': Post.query.filter_by(cliente_id=cliente_id, status='publicado').count(),
+        'reprovado': Post.query.filter_by(cliente_id=cliente_id, status='reprovado').count(),
     }
 
     from datetime import date as _date
@@ -73,21 +132,25 @@ def dashboard():
 @app.route('/post/<int:post_id>/aprovar', methods=['POST'])
 @login_required
 def aprovar_post(post_id):
-    post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
+    if current_user.is_admin:
+        post = Post.query.get_or_404(post_id)
+    else:
+        post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
     post.status = 'aprovado'
     post.aprovado_por = current_user.id
     post.aprovado_em = datetime.utcnow()
     db.session.commit()
-
     flash('Post aprovado! Será publicado automaticamente no dia agendado.', 'success')
-
     return redirect(url_for('dashboard'))
 
 
 @app.route('/post/<int:post_id>/reprovar', methods=['POST'])
 @login_required
 def reprovar_post(post_id):
-    post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
+    if current_user.is_admin:
+        post = Post.query.get_or_404(post_id)
+    else:
+        post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
     feedback = request.form.get('feedback', '').strip()
     post.status = 'reprovado'
     post.feedback = feedback
@@ -96,35 +159,30 @@ def reprovar_post(post_id):
     return redirect(url_for('dashboard'))
 
 
-# ── Admin — Prompts por dia ───────────────────────────────────────────────────
+# ── Prompts por dia ───────────────────────────────────────────────────────────
 
-@app.route('/admin/prompts')
+@app.route('/prompts')
 @login_required
 def admin_prompts():
-    if not current_user.is_admin:
-        abort(403)
-
-    clientes = Cliente.query.filter_by(ativo=True).all()
-    cliente_id = request.args.get('cliente_id', clientes[0].id if clientes else None, type=int)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
     cliente_sel = Cliente.query.get_or_404(cliente_id)
-
     prompts = {p.dia_semana: p for p in PromptEstilo.query.filter_by(cliente_id=cliente_id).all()}
-
     return render_template('admin/prompts.html',
-                           clientes=clientes,
                            cliente_sel=cliente_sel,
                            prompts=prompts,
                            DIAS=DIAS,
                            DIAS_LABEL=DIAS_LABEL)
 
 
-@app.route('/admin/prompts/salvar', methods=['POST'])
+@app.route('/prompts/salvar', methods=['POST'])
 @login_required
 def salvar_prompt():
-    if not current_user.is_admin:
-        abort(403)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
 
-    cliente_id = request.form.get('cliente_id', type=int)
     dia = request.form.get('dia_semana')
     intencao = request.form.get('intencao', '').strip()
     prompt_imagem = request.form.get('prompt_imagem', '').strip()
@@ -145,44 +203,42 @@ def salvar_prompt():
 
     db.session.commit()
     flash(f'Prompt de {DIAS_LABEL[dia]} salvo com sucesso.', 'success')
-    return redirect(url_for('admin_prompts', cliente_id=cliente_id))
+    return redirect(url_for('admin_prompts'))
 
 
-# ── Admin — Planejamento ──────────────────────────────────────────────────────
+# ── Planejamento ──────────────────────────────────────────────────────────────
 
-@app.route('/admin/planejamento')
+@app.route('/planejamento')
 @login_required
 def admin_planejamento():
-    if not current_user.is_admin:
-        abort(403)
-    clientes = Cliente.query.filter_by(ativo=True).all()
-    cliente_id = request.args.get('cliente_id', clientes[0].id if clientes else None, type=int)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
     cliente_sel = Cliente.query.get_or_404(cliente_id)
-    return render_template('admin/planejamento.html', clientes=clientes, cliente_sel=cliente_sel)
+    return render_template('admin/planejamento.html', cliente_sel=cliente_sel)
 
 
-@app.route('/admin/planejamento/salvar', methods=['POST'])
+@app.route('/planejamento/salvar', methods=['POST'])
 @login_required
 def salvar_planejamento():
-    if not current_user.is_admin:
-        abort(403)
-    cliente_id = request.form.get('cliente_id', type=int)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
     cliente = Cliente.query.get_or_404(cliente_id)
     cliente.planejamento_texto = request.form.get('planejamento_texto', '').strip()
     db.session.commit()
     flash('Planejamento salvo.', 'success')
-    return redirect(url_for('admin_planejamento', cliente_id=cliente_id))
+    return redirect(url_for('admin_planejamento'))
 
 
-@app.route('/admin/planejamento/preview', methods=['POST'])
+@app.route('/planejamento/preview', methods=['POST'])
 @login_required
 def preview_planejamento():
-    if not current_user.is_admin:
-        abort(403)
     from generate import parsear_planejamento
-    from datetime import datetime
 
-    cliente_id = request.form.get('cliente_id', type=int)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
     cliente = Cliente.query.get_or_404(cliente_id)
     texto = request.form.get('planejamento_texto', '').strip()
 
@@ -214,21 +270,18 @@ def preview_planejamento():
             'fim_de_semana': fim_de_semana,
         })
 
-    clientes = Cliente.query.filter_by(ativo=True).all()
-    return render_template('admin/planejamento.html',
-                           clientes=clientes, cliente_sel=cliente,
-                           preview=preview)
+    return render_template('admin/planejamento.html', cliente_sel=cliente, preview=preview)
 
 
-@app.route('/admin/planejamento/gerar', methods=['POST'])
+@app.route('/planejamento/gerar', methods=['POST'])
 @login_required
 def gerar_do_planejamento():
-    if not current_user.is_admin:
-        abort(403)
     import threading
     from generate import parsear_planejamento, gerar_do_planejamento as _gerar
 
-    cliente_id = request.form.get('cliente_id', type=int)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
     cliente = Cliente.query.get_or_404(cliente_id)
     texto = request.form.get('planejamento_texto', '').strip()
 
@@ -241,7 +294,7 @@ def gerar_do_planejamento():
 
     if not novos:
         flash('Nenhuma entrada válida encontrada.', 'error')
-        return redirect(url_for('admin_planejamento', cliente_id=cliente_id))
+        return redirect(url_for('admin_planejamento'))
 
     def _worker(app_ctx, entries, cliente_id):
         with app_ctx:
@@ -261,33 +314,33 @@ def gerar_do_planejamento():
     return redirect(url_for('dashboard'))
 
 
-@app.route('/admin/cliente/<int:cliente_id>/contexto', methods=['POST'])
+@app.route('/cliente/<int:cliente_id>/contexto', methods=['POST'])
 @login_required
 def salvar_contexto(cliente_id):
-    if not current_user.is_admin:
+    if not current_user.is_admin and current_user.cliente_id != cliente_id:
         abort(403)
     cliente = Cliente.query.get_or_404(cliente_id)
     cliente.contexto = request.form.get('contexto', '').strip()
     db.session.commit()
     flash('Contexto da marca salvo com sucesso.', 'success')
-    return redirect(url_for('admin_prompts', cliente_id=cliente_id))
+    return redirect(url_for('admin_prompts'))
 
 
-@app.route('/admin/cliente/<int:cliente_id>/logo', methods=['POST'])
+@app.route('/cliente/<int:cliente_id>/logo', methods=['POST'])
 @login_required
 def upload_logo(cliente_id):
-    if not current_user.is_admin:
+    if not current_user.is_admin and current_user.cliente_id != cliente_id:
         abort(403)
     cliente = Cliente.query.get_or_404(cliente_id)
     f = request.files.get('logo')
     if not f or not f.filename:
         flash('Nenhum arquivo selecionado.', 'error')
-        return redirect(url_for('admin_prompts', cliente_id=cliente_id))
+        return redirect(url_for('admin_prompts'))
 
     ext = os.path.splitext(f.filename)[1].lower()
     if ext not in ('.png', '.jpg', '.jpeg', '.svg'):
         flash('Formato inválido. Use PNG, JPG ou SVG.', 'error')
-        return redirect(url_for('admin_prompts', cliente_id=cliente_id))
+        return redirect(url_for('admin_prompts'))
 
     logos_dir = os.path.join(app.root_path, 'static', 'uploads', 'logos')
     os.makedirs(logos_dir, exist_ok=True)
@@ -296,7 +349,7 @@ def upload_logo(cliente_id):
     cliente.logo_url = f'/static/uploads/logos/{filename}'
     db.session.commit()
     flash('Logo salvo com sucesso.', 'success')
-    return redirect(url_for('admin_prompts', cliente_id=cliente_id))
+    return redirect(url_for('admin_prompts'))
 
 
 # ── Admin — Clientes ──────────────────────────────────────────────────────────
@@ -322,6 +375,7 @@ def novo_cliente():
         webhook = request.form.get('make_webhook_url', '').strip()
         email = request.form.get('email', '').strip().lower()
         senha = request.form.get('senha', '').strip()
+        gemini_api_key = request.form.get('gemini_api_key', '').strip()
 
         if not nome or not instagram or not email or not senha:
             flash('Preencha todos os campos obrigatórios.', 'error')
@@ -331,7 +385,8 @@ def novo_cliente():
             flash('Este email já está cadastrado.', 'error')
             return render_template('admin/novo_cliente.html')
 
-        cliente = Cliente(nome=nome, instagram_handle=instagram, make_webhook_url=webhook)
+        cliente = Cliente(nome=nome, instagram_handle=instagram,
+                         make_webhook_url=webhook, gemini_api_key=gemini_api_key or None)
         db.session.add(cliente)
         db.session.flush()
 
@@ -358,6 +413,8 @@ def editar_cliente(cliente_id):
         cliente.nome = request.form.get('nome', '').strip()
         cliente.instagram_handle = request.form.get('instagram_handle', '').strip().lstrip('@')
         cliente.make_webhook_url = request.form.get('make_webhook_url', '').strip()
+        gemini_key = request.form.get('gemini_api_key', '').strip()
+        cliente.gemini_api_key = gemini_key or None
         cliente.ativo = 'ativo' in request.form
         db.session.commit()
         flash(f'Cliente {cliente.nome} atualizado com sucesso.', 'success')
@@ -366,7 +423,7 @@ def editar_cliente(cliente_id):
     return render_template('admin/editar_cliente.html', cliente=cliente)
 
 
-# ── Admin — Configurações ─────────────────────────────────────────────────────
+# ── Configurações (admin + cliente) ──────────────────────────────────────────
 
 PROVEDORES_IMAGEM = [
     ('pollinations', 'Pollinations.ai (Flux)', 'Gratuito, sem chave API', None),
@@ -375,20 +432,29 @@ PROVEDORES_IMAGEM = [
 ]
 
 
-@app.route('/admin/configuracoes', methods=['GET', 'POST'])
+@app.route('/configuracoes', methods=['GET', 'POST'])
 @login_required
 def admin_configuracoes():
-    if not current_user.is_admin:
-        abort(403)
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
+
+    cliente_sel = Cliente.query.get_or_404(cliente_id)
 
     if request.method == 'POST':
-        provedor = request.form.get('provedor_imagem', 'pollinations')
-        if provedor not in [p[0] for p in PROVEDORES_IMAGEM]:
-            flash('Provedor inválido.', 'error')
-        else:
-            Configuracao.set('provedor_imagem', provedor)
-            db.session.commit()
-            flash('Configuração salva com sucesso.', 'success')
+        # Chave Gemini do cliente
+        gemini_key = request.form.get('gemini_api_key', '').strip()
+        cliente_sel.gemini_api_key = gemini_key or None
+        db.session.commit()
+
+        # Provedor de imagem — só admin altera
+        if current_user.is_admin:
+            provedor = request.form.get('provedor_imagem', 'pollinations')
+            if provedor in [p[0] for p in PROVEDORES_IMAGEM]:
+                Configuracao.set('provedor_imagem', provedor)
+                db.session.commit()
+
+        flash('Configurações salvas com sucesso.', 'success')
         return redirect(url_for('admin_configuracoes'))
 
     provedor_atual = Configuracao.get('provedor_imagem', 'pollinations')
@@ -397,7 +463,8 @@ def admin_configuracoes():
     return render_template('admin/configuracoes.html',
                            provedores=PROVEDORES_IMAGEM,
                            provedor_atual=provedor_atual,
-                           chaves=chaves_presentes)
+                           chaves=chaves_presentes,
+                           cliente_sel=cliente_sel)
 
 
 # ── Geração de conteúdo ──────────────────────────────────────────────────────
@@ -407,6 +474,10 @@ def admin_configuracoes():
 def admin_gerar():
     if not current_user.is_admin:
         abort(403)
+    cliente_id, redir = _require_admin_cliente()
+    if redir:
+        return redir
+
     from datetime import date as _date
     from generate import gerar_posts_hoje
     data_str = request.form.get('data_publicacao', '').strip()
@@ -416,7 +487,7 @@ def admin_gerar():
         flash('Data inválida.', 'error')
         return redirect(url_for('dashboard'))
     try:
-        posts = gerar_posts_hoje(data=alvo)
+        posts = gerar_posts_hoje(data=alvo, cliente_id=cliente_id)
         if posts:
             flash(f'{len(posts)} post(s) gerado(s) para {alvo.strftime("%d/%m/%Y")}!', 'success')
         else:
@@ -433,7 +504,10 @@ def admin_gerar():
 @app.route('/post/<int:post_id>/regerar', methods=['POST'])
 @login_required
 def regerar_post(post_id):
-    post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
+    if current_user.is_admin:
+        post = Post.query.get_or_404(post_id)
+    else:
+        post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
     if post.status not in ('pendente', 'reprovado'):
         flash('Só é possível regerar posts pendentes ou reprovados.', 'error')
         return redirect(url_for('dashboard'))
@@ -448,11 +522,7 @@ def regerar_post(post_id):
 
 @app.route('/cron/gerar', methods=['POST'])
 def cron_gerar():
-    """HTTP endpoint for scheduled post generation.
-
-    Requires X-Cron-Token header matching CRON_SECRET env var.
-    Called by cron services (cron-job.org, EasyCron, etc.) or cron_gerar.py.
-    """
+    """HTTP endpoint for scheduled post generation."""
     token = os.environ.get('CRON_SECRET', '')
     if not token or request.headers.get('X-Cron-Token') != token:
         abort(403)
@@ -477,17 +547,11 @@ def _check_token():
         abort(401, 'Token inválido.')
 
 def _base_url():
-    """Public base URL — uses REQUEST_BASE_URL env var in production."""
     return os.environ.get('REQUEST_BASE_URL', request.host_url.rstrip('/'))
 
 
 @app.route('/api/posts/publicar')
 def api_posts_publicar():
-    """Return approved posts for a given date (default: today).
-
-    Make.com calls this daily. Query params:
-      ?token=SEU_TOKEN&data=22/04/2026   (optional — defaults to today)
-    """
     _check_token()
     from datetime import date as date_cls
 
@@ -520,7 +584,6 @@ def api_posts_publicar():
 
 @app.route('/api/posts/<int:post_id>/publicado', methods=['POST', 'GET'])
 def api_marcar_publicado(post_id):
-    """Mark a post as published. Make.com calls this after posting to Instagram."""
     _check_token()
     post = Post.query.get_or_404(post_id)
     if post.status == 'aprovado':
@@ -569,7 +632,7 @@ def aplicar_texto_imagens():
             print(f'  [skip] arquivo não encontrado: {filepath}')
             continue
         try:
-            pe = post.cliente.prompts  # list
+            pe = post.cliente.prompts
             prompt_dia = next((p for p in pe if p.dia_semana == post.dia_semana and p.ativo), None)
             subheadline = prompt_dia.texto_subheadline if prompt_dia else ""
             cta = prompt_dia.texto_cta if prompt_dia else "Acesse o link na bio"

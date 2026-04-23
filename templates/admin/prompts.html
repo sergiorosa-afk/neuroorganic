@@ -5,20 +5,8 @@
 <div class="mb-6 flex items-center justify-between">
     <div>
         <h1 class="text-xl font-bold text-gray-900">Prompts por Dia</h1>
-        <p class="text-sm text-gray-500">Configure intenção e prompt de imagem para cada dia da semana</p>
+        <p class="text-sm text-gray-500">{{ cliente_sel.nome }} — @{{ cliente_sel.instagram_handle }}</p>
     </div>
-
-    <!-- Seletor de cliente -->
-    <form method="GET">
-        <select name="cliente_id" onchange="this.form.submit()"
-            class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
-            {% for c in clientes %}
-            <option value="{{ c.id }}" {% if c.id == cliente_sel.id %}selected{% endif %}>
-                @{{ c.instagram_handle }} — {{ c.nome }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
 </div>
 
 <!-- Card logo -->
