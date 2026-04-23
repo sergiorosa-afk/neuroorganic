@@ -83,7 +83,8 @@ def aprovar_post(post_id):
     if cliente.make_webhook_url:
         from webhook import disparar_webhook
         try:
-            disparar_webhook(cliente.make_webhook_url, post, request.url_root)
+            base_url = os.environ.get('REQUEST_BASE_URL', request.url_root).rstrip('/')
+            disparar_webhook(cliente.make_webhook_url, post, base_url + '/')
             post.status = 'publicado'
             post.publicado_em = datetime.utcnow()
             db.session.commit()
