@@ -128,7 +128,7 @@ def gerar_posts_hoje(data=None):
 
         try:
             subheadline = prompt_estilo.texto_subheadline or ""
-            cta = prompt_estilo.texto_cta or "Acesse o link na bio"
+            cta = prompt_estilo.texto_cta or ""
             logo_path = _logo_filepath(cliente.logo_url)
             contexto = cliente.contexto or ""
 
@@ -206,7 +206,7 @@ def regerar_post(post):
     )
 
     subheadline = prompt_estilo.texto_subheadline or ""
-    cta = prompt_estilo.texto_cta or "Acesse o link na bio"
+    cta = prompt_estilo.texto_cta or ""
     logo_path = _logo_filepath(post.cliente.logo_url)
     imagem_url = _gerar_imagem(post.cliente_id, post.dia_semana, prompt_img,
                                titulo=titulo, subheadline=subheadline,
@@ -334,11 +334,11 @@ def _extrair_subheadline_cta(legenda):
     lines = [l.strip() for l in legenda.split('\n') if l.strip()]
     content = [l for l in lines if not re.match(r'^#', l)]
     subheadline = re.sub(r'[^\w\s\.,!?áéíóúãõâêîôûàèìòùçÁÉÍÓÚÃÕÂÊÎÔÛÀÈÌÒÙÇ🧠🤝💡🎯]', '', content[0])[:72] if content else ""
-    cta = content[-1][:60] if len(content) > 1 else "Acesse o link na bio"
+    cta = content[-1][:60] if len(content) > 1 else ""
     return subheadline.strip(), cta.strip()
 
 
-def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="Acesse o link na bio", logo_path=None):
+def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="", logo_path=None):
     """Premium Pillow text overlay — Apple/Nike editorial style."""
     from PIL import Image, ImageDraw, ImageFont
 
@@ -522,7 +522,7 @@ def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta
             f.write(resp.content)
 
     if titulo:
-        compor_texto_na_imagem(filepath, titulo, subheadline=subheadline, cta=cta or "Acesse o link na bio", logo_path=logo_path)
+        compor_texto_na_imagem(filepath, titulo, subheadline=subheadline, cta=cta or "", logo_path=logo_path)
 
     return f"/static/uploads/{filename}"
 
