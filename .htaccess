@@ -1,15 +1,7 @@
-PassengerEnabled On
-PassengerAppRoot /home3/fionco36/neuroseller.com.br/neuroorganic
-PassengerAppType wsgi
-PassengerStartupFile passenger_wsgi.py
-
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    # Leave PHP files and static files alone
-    RewriteCond %{REQUEST_FILENAME} \.php$ [OR]
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
-    # Everything else goes to Passenger
     RewriteRule ^(.*)$ passenger_wsgi.py/$1 [QSA,L]
 </IfModule>
