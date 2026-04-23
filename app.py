@@ -418,9 +418,10 @@ def editar_cliente(cliente_id):
         cliente.gemini_api_key = gemini_key or None
         cliente.ativo = 'ativo' in request.form
 
+        novo_email = request.form.get('email', '').strip().lower()
+        nova_senha = request.form.get('senha', '').strip()
+
         if usuario:
-            novo_email = request.form.get('email', '').strip().lower()
-            nova_senha = request.form.get('senha', '').strip()
             if novo_email and novo_email != usuario.email:
                 conflito = Usuario.query.filter_by(email=novo_email).first()
                 if conflito and conflito.id != usuario.id:
@@ -429,6 +430,17 @@ def editar_cliente(cliente_id):
                 usuario.email = novo_email
             if nova_senha:
                 usuario.set_senha(nova_senha)
+        elif novo_email and nova_senha:
+            conflito = Usuario.query.filter_by(email=novo_email).first()
+            if conflito:
+                flash('Este email já está em uso por outro usuário.', 'error')
+                return render_template('admin/editar_cliente.html', cliente=cliente, usuario=None)
+            usuario = Usuario(cliente_id=cliente.id, nome=cliente.nome, email=novo_email, role='cliente')
+            usuario.set_senha(nova_senha)
+            db.session.add(usuario)
+        elif not usuario:
+            flash('Preencha email e senha para criar o acesso do cliente.', 'error')
+            return render_template('admin/editar_cliente.html', cliente=cliente, usuario=None)
 
         db.session.commit()
         flash(f'Cliente {cliente.nome} atualizado com sucesso.', 'success')
