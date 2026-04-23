@@ -195,9 +195,9 @@
         <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl
                     max-h-[90vh] flex flex-col">
             {% if post.imagem_url %}
-            <div class="aspect-square flex-shrink-0 overflow-hidden">
+            <div class="aspect-[3/4] flex-shrink-0 overflow-hidden">
                 <img src="{{ post.imagem_url }}"
-                     class="w-full h-full object-cover"
+                     class="w-full h-full object-contain bg-black"
                      alt="{{ post.titulo }}">
             </div>
             {% endif %}
