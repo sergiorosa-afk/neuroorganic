@@ -11,6 +11,7 @@ CREATE TABLE clientes (
     make_webhook_url MEDIUMTEXT,
     logo_url MEDIUMTEXT,
     planejamento_texto MEDIUMTEXT,
+    contexto MEDIUMTEXT,
     ativo TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

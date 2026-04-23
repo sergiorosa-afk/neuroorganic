@@ -42,6 +42,18 @@
     {% if cliente_sel.logo_url %}
     <p class="text-xs text-gray-400 mt-2">O logo aparece centralizado no rodapé de todas as imagens geradas.</p>
     {% endif %}
+
+    <form method="POST" action="{{ url_for('salvar_contexto', cliente_id=cliente_sel.id) }}" class="mt-5 pt-5 border-t border-gray-100">
+        <label class="block text-sm font-semibold text-gray-800 mb-1">Contexto da marca</label>
+        <p class="text-xs text-gray-500 mb-2">Descreva quem é a empresa, público-alvo e proposta de valor. O Gemini usa isso para gerar textos e imagens alinhados à marca.</p>
+        <textarea name="contexto" rows="4"
+            placeholder="Ex: Somos a Unilaser, empresa de cursos de depilação a laser. Nosso público são mulheres que querem aprender uma nova profissão, mudar de carreira ou aumentar a renda. Atendemos profissionais iniciantes e experientes da área de estética."
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 resize-y">{{ cliente_sel.contexto or '' }}</textarea>
+        <button type="submit"
+            class="mt-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition">
+            Salvar contexto
+        </button>
+    </form>
 </div>
 
 <div class="space-y-4">

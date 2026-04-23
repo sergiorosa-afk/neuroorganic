@@ -13,6 +13,7 @@ class Cliente(db.Model):
     make_webhook_url = db.Column(db.Text)
     logo_url = db.Column(db.Text)
     planejamento_texto = db.Column(db.Text, default='')
+    contexto = db.Column(db.Text, default='')
     ativo = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

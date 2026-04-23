@@ -160,8 +160,6 @@ def gerar_posts_hoje(data=None):
             print(f"[{cliente.nome}] Sem prompt para {dia_semana}, pulando.")
             continue
 
-        # Só bloqueia se já existe post pendente, aprovado ou publicado.
-        # Post reprovado não conta — gera novo normalmente.
         post_ativo = Post.query.filter(
             Post.cliente_id == cliente.id,
             Post.data_publicacao == alvo,
@@ -171,17 +169,35 @@ def gerar_posts_hoje(data=None):
             print(f"[{cliente.nome}] Post ativo já existe para {alvo}, pulando.")
             continue
 
-        try:
-            print(f"[{cliente.nome}] Gerando conteúdo ({dia_semana})...")
-            titulo, legenda, prompt_img = _gerar_texto(
-                client, prompt_estilo.intencao, prompt_estilo.prompt_imagem
-            )
+        # Verifica se há entrada no planejamento para esta data
+        entries = parsear_planejamento(cliente.planejamento_texto or '')
+        entry_planejada = next((e for e in entries if e['data'] == alvo), None)
 
-            print(f"[{cliente.nome}] Gerando imagem via Imagen 3...")
+        try:
             subheadline = prompt_estilo.texto_subheadline or ""
             cta = prompt_estilo.texto_cta or "Acesse o link na bio"
             logo_path = _logo_filepath(cliente.logo_url)
-            imagem_url = _gerar_imagem(cliente.id, dia_semana, prompt_img, titulo=titulo, subheadline=subheadline, cta=cta, logo_path=logo_path)
+            contexto = cliente.contexto or ""
+
+            if entry_planejada:
+                print(f"[{cliente.nome}] Usando planejamento para {alvo}...")
+                titulo = entry_planejada['titulo']
+                legenda = entry_planejada['legenda']
+                prompt_img = (prompt_estilo.prompt_imagem or '').replace(
+                    '{intencao_do_dia}', titulo
+                )
+            else:
+                print(f"[{cliente.nome}] Gerando conteúdo via IA ({dia_semana})...")
+                titulo, legenda, prompt_img = _gerar_texto(
+                    client, prompt_estilo.intencao, prompt_estilo.prompt_imagem,
+                    contexto=contexto,
+                )
+
+            print(f"[{cliente.nome}] Gerando imagem...")
+            imagem_url = _gerar_imagem(cliente.id, dia_semana, prompt_img,
+                                       titulo=titulo, subheadline=subheadline,
+                                       cta=cta, logo_path=logo_path,
+                                       contexto=contexto)
 
             post = Post(
                 cliente_id=cliente.id,
@@ -201,7 +217,7 @@ def gerar_posts_hoje(data=None):
         except Exception as e:
             print(f"[{cliente.nome}] Erro: {e}")
             db.session.rollback()
-            raise  # propaga o erro para o chamador mostrar mensagem correta
+            raise
 
     return gerados
 
@@ -226,18 +242,22 @@ def regerar_post(post):
 
     client = _gemini_client()
 
+    contexto = post.cliente.contexto or ""
     titulo, legenda, prompt_img = _gerar_texto(
         client,
         prompt_estilo.intencao,
         prompt_estilo.prompt_imagem,
         feedback=post.feedback,
         titulo_anterior=post.titulo,
+        contexto=contexto,
     )
 
     subheadline = prompt_estilo.texto_subheadline or ""
     cta = prompt_estilo.texto_cta or "Acesse o link na bio"
     logo_path = _logo_filepath(post.cliente.logo_url)
-    imagem_url = _gerar_imagem(post.cliente_id, post.dia_semana, prompt_img, titulo=titulo, subheadline=subheadline, cta=cta, logo_path=logo_path)
+    imagem_url = _gerar_imagem(post.cliente_id, post.dia_semana, prompt_img,
+                               titulo=titulo, subheadline=subheadline,
+                               cta=cta, logo_path=logo_path, contexto=contexto)
 
     if post.status == 'pendente':
         post.status = 'reprovado'
@@ -259,7 +279,7 @@ def regerar_post(post):
     return novo_post
 
 
-def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo_anterior=None):
+def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo_anterior=None, contexto=""):
     """Call Gemini API to generate title, caption, and refined image prompt."""
     feedback_ctx = ""
     if feedback:
@@ -267,13 +287,17 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
         if titulo_anterior:
             feedback_ctx += f'\nPost reprovado: "{titulo_anterior}" — crie algo notavelmente DIFERENTE.'
 
+    contexto_ctx = f"\n\nCONTEXTO DA MARCA (sempre leve em consideração):\n{contexto}" if contexto else ""
+
     user_message = (
         f"Crie um post Instagram para hoje.\n\n"
         f"INTENÇÃO DO DIA: {intencao}\n\n"
         f"TEMPLATE DO PROMPT DE IMAGEM:\n{prompt_imagem_template}"
+        f"{contexto_ctx}"
         f"{feedback_ctx}\n\n"
         f"No campo \"prompt_imagem\" do JSON, refine o template acima "
         f"substituindo qualquer placeholder pela intenção real do dia. "
+        f"O prompt_imagem deve refletir o contexto da marca (público-alvo, ambiente, estilo). "
         f"Escreva o prompt_imagem em inglês."
     )
 
@@ -495,7 +519,7 @@ def _gerar_imagem_imagen3(prompt):
     raise ValueError('Nenhuma imagem retornada pelo modelo')
 
 
-def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None):
+def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None, contexto=""):
     """Generate image using configured provider, then compose text overlay."""
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_dir, exist_ok=True)
@@ -503,6 +527,8 @@ def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta
     filepath = os.path.join(upload_dir, filename)
 
     clean_prompt = _prompt_sem_texto(prompt)
+    if contexto:
+        clean_prompt = f"{clean_prompt} Brand context: {contexto}"
     provedor = _get_provedor()
 
     if provedor == 'imagen3':

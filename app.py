@@ -273,6 +273,18 @@ def gerar_do_planejamento():
     return redirect(url_for('dashboard'))
 
 
+@app.route('/admin/cliente/<int:cliente_id>/contexto', methods=['POST'])
+@login_required
+def salvar_contexto(cliente_id):
+    if not current_user.is_admin:
+        abort(403)
+    cliente = Cliente.query.get_or_404(cliente_id)
+    cliente.contexto = request.form.get('contexto', '').strip()
+    db.session.commit()
+    flash('Contexto da marca salvo com sucesso.', 'success')
+    return redirect(url_for('admin_prompts', cliente_id=cliente_id))
+
+
 @app.route('/admin/cliente/<int:cliente_id>/logo', methods=['POST'])
 @login_required
 def upload_logo(cliente_id):
