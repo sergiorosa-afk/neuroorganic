@@ -97,6 +97,22 @@ PY;
     exit;
 }
 
+// ── Limpar imagens de uploads ─────────────────────────────────────────────────
+if ($action === 'clean-uploads') {
+    $uploads = "$DIR/static/uploads";
+    $files = glob("$uploads/*.{jpg,jpeg,png,gif,webp}", GLOB_BRACE);
+    $count = 0;
+    foreach ($files as $file) {
+        if (is_file($file)) {
+            unlink($file);
+            $count++;
+        }
+    }
+    echo "✓ $count imagens removidas de static/uploads/\n";
+    echo "\n=== Uploads limpos ===\n";
+    exit;
+}
+
 // ── Limpar todos os posts ─────────────────────────────────────────────────────
 if ($action === 'truncate-posts') {
     $env_file = "$DIR/.env";
