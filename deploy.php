@@ -34,23 +34,43 @@ $action = $_GET['action'] ?? 'pull';
 
 // ── Criar .env em produção ────────────────────────────────────────────────────
 if ($action === 'setup-env') {
-    $gemini_key = $_GET['gemini'] ?? '';
-    $cron_secret = $_GET['cron'] ?? 'neuro-cron-2026';
+    $env_file = "$DIR/.env";
 
-    if (!$gemini_key) {
-        die("ERRO: passe ?gemini=SUA_CHAVE na URL\n");
+    // Lê .env existente ou começa do padrão
+    $defaults = [
+        'DATABASE_URL'      => 'mysql+pymysql://fionco36_neuroorganic:12345%40Mudar@localhost:3306/fionco36_neuroorganic',
+        'SECRET_KEY'        => 'neuro-secret-2026-xK9mP',
+        'GEMINI_API_KEY'    => '',
+        'FAL_KEY'           => '',
+        'CRON_SECRET'       => 'neuro-cron-2026',
+        'REQUEST_BASE_URL'  => 'https://neuroorganic.neuroseller.com.br',
+    ];
+
+    // Carrega valores existentes do .env
+    $current = $defaults;
+    if (file_exists($env_file)) {
+        foreach (file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+            if (strpos($line, '=') !== false && $line[0] !== '#') {
+                [$k, $v] = explode('=', $line, 2);
+                $current[trim($k)] = trim($v);
+            }
+        }
     }
 
-    $env = <<<ENV
-DATABASE_URL=mysql+pymysql://fionco36_neuroorganic:12345%40Mudar@localhost:3306/fionco36_neuroorganic
-SECRET_KEY=neuro-secret-2026-xK9mP
-GEMINI_API_KEY=$gemini_key
-CRON_SECRET=$cron_secret
-REQUEST_BASE_URL=https://neuroseller.com.br/neuroorganic
-ENV;
+    // Sobrescreve apenas os parâmetros passados na URL
+    if (isset($_GET['gemini']) && $_GET['gemini'] !== '') $current['GEMINI_API_KEY'] = $_GET['gemini'];
+    if (isset($_GET['fal'])    && $_GET['fal']    !== '') $current['FAL_KEY']        = $_GET['fal'];
+    if (isset($_GET['cron'])   && $_GET['cron']   !== '') $current['CRON_SECRET']    = $_GET['cron'];
 
-    file_put_contents("$DIR/.env", $env);
-    echo file_exists("$DIR/.env") ? "✓ .env criado com sucesso\n" : "✗ Falha ao criar .env\n";
+    $lines = [];
+    foreach ($current as $k => $v) {
+        $lines[] = "$k=$v";
+    }
+    file_put_contents($env_file, implode("\n", $lines) . "\n");
+    echo file_exists($env_file) ? "✓ .env atualizado com sucesso\n" : "✗ Falha ao salvar .env\n";
+    echo "\nChaves configuradas:\n";
+    echo "  GEMINI_API_KEY : " . ($current['GEMINI_API_KEY'] ? '✓ presente' : '✗ vazia') . "\n";
+    echo "  FAL_KEY        : " . ($current['FAL_KEY']        ? '✓ presente' : '✗ vazia') . "\n";
     echo "\n=== Concluído ===\n";
     exit;
 }

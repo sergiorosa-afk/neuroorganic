@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
-from models import db, Usuario, Cliente, PromptEstilo, Post, DIAS, DIAS_LABEL
+from models import db, Usuario, Cliente, PromptEstilo, Post, Configuracao, DIAS, DIAS_LABEL
 from datetime import datetime
 
 app = Flask(__name__)
@@ -344,6 +344,40 @@ def novo_cliente():
         return redirect(url_for('admin_clientes'))
 
     return render_template('admin/novo_cliente.html')
+
+
+# ── Admin — Configurações ─────────────────────────────────────────────────────
+
+PROVEDORES_IMAGEM = [
+    ('pollinations', 'Pollinations.ai (Flux)', 'Gratuito, sem chave API', None),
+    ('fal_flux',     'Flux Realism (fal.ai)',  'Melhor qualidade — requer FAL_KEY', 'FAL_KEY'),
+    ('imagen3',      'Imagen 3 (Google)',       'Alta qualidade — requer GEMINI_API_KEY + billing', 'GEMINI_API_KEY'),
+]
+
+
+@app.route('/admin/configuracoes', methods=['GET', 'POST'])
+@login_required
+def admin_configuracoes():
+    if not current_user.is_admin:
+        abort(403)
+
+    if request.method == 'POST':
+        provedor = request.form.get('provedor_imagem', 'pollinations')
+        if provedor not in [p[0] for p in PROVEDORES_IMAGEM]:
+            flash('Provedor inválido.', 'error')
+        else:
+            Configuracao.set('provedor_imagem', provedor)
+            db.session.commit()
+            flash('Configuração salva com sucesso.', 'success')
+        return redirect(url_for('admin_configuracoes'))
+
+    provedor_atual = Configuracao.get('provedor_imagem', 'pollinations')
+    chaves_presentes = {k: bool(os.environ.get(k)) for k in ['GEMINI_API_KEY', 'FAL_KEY']}
+
+    return render_template('admin/configuracoes.html',
+                           provedores=PROVEDORES_IMAGEM,
+                           provedor_atual=provedor_atual,
+                           chaves=chaves_presentes)
 
 
 # ── Geração de conteúdo ──────────────────────────────────────────────────────

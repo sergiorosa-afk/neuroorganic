@@ -17,6 +17,7 @@
         <a href="{{ url_for('admin_prompts') }}" class="text-sm text-gray-600 hover:text-gray-900">Prompts</a>
         <a href="{{ url_for('admin_planejamento') }}" class="text-sm text-gray-600 hover:text-gray-900">Planejamento</a>
         <a href="{{ url_for('admin_clientes') }}" class="text-sm text-gray-600 hover:text-gray-900">Clientes</a>
+        <a href="{{ url_for('admin_configuracoes') }}" class="text-sm text-gray-600 hover:text-gray-900">Configurações</a>
         <form method="POST" action="{{ url_for('admin_gerar') }}" class="inline"
               onsubmit="return confirm('Gerar posts para todos os clientes ativos hoje?')">
             <button type="submit"

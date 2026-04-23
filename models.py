@@ -69,6 +69,26 @@ class PromptEstilo(db.Model):
         db.UniqueConstraint('cliente_id', 'dia_semana', name='uq_cliente_dia'),
     )
 
+class Configuracao(db.Model):
+    __tablename__ = 'configuracoes'
+    chave = db.Column(db.String(50), primary_key=True)
+    valor = db.Column(db.String(255), nullable=False)
+
+    @staticmethod
+    def get(chave, default=''):
+        c = Configuracao.query.get(chave)
+        return c.valor if c else default
+
+    @staticmethod
+    def set(chave, valor):
+        c = Configuracao.query.get(chave)
+        if c:
+            c.valor = valor
+        else:
+            c = Configuracao(chave=chave, valor=valor)
+            db.session.add(c)
+
+
 class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)

@@ -63,6 +63,12 @@ CREATE TABLE posts (
     FOREIGN KEY (aprovado_por) REFERENCES usuarios(id)
 );
 
+-- Configurações globais da plataforma (chave-valor)
+CREATE TABLE configuracoes (
+    chave VARCHAR(50) PRIMARY KEY,
+    valor VARCHAR(255) NOT NULL
+);
+
 -- ============================================
 -- DADOS INICIAIS
 -- ============================================

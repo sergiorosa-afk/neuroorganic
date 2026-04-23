@@ -448,30 +448,66 @@ def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="Acesse o link 
     img.convert("RGB").save(filepath, "JPEG", quality=93)
 
 
+def _get_provedor():
+    try:
+        from models import Configuracao
+        return Configuracao.get('provedor_imagem', 'pollinations')
+    except Exception:
+        return 'pollinations'
+
+
+def _gerar_imagem_fal(prompt):
+    """Generate image via Flux (fal.ai). Requires FAL_KEY env var."""
+    result = fal_client.subscribe(
+        "fal-ai/flux-realism",
+        arguments={
+            "prompt": prompt,
+            "image_size": "square_hd",
+            "num_images": 1,
+            "enable_safety_checker": False,
+        },
+    )
+    image_url = result["images"][0]["url"]
+    resp = requests.get(image_url, timeout=120)
+    resp.raise_for_status()
+    return resp.content
+
+
+def _gerar_imagem_imagen3(prompt):
+    """Generate image via Google Imagen 3. Requires GEMINI_API_KEY env var."""
+    client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+    response = client.models.generate_images(
+        model='imagen-3.0-generate-002',
+        prompt=prompt,
+        config=types.GenerateImagesConfig(
+            number_of_images=1,
+            aspect_ratio='1:1',
+        ),
+    )
+    return response.generated_images[0].image.image_bytes
+
+
 def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None):
-    """Call Gemini Imagen 3 (primary) with automatic Pollinations.ai fallback, then compose text."""
+    """Generate image using configured provider, then compose text overlay."""
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_dir, exist_ok=True)
     filename = f"{cliente_id}_{dia_semana}_{uuid.uuid4().hex[:8]}.jpg"
     filepath = os.path.join(upload_dir, filename)
 
     clean_prompt = _prompt_sem_texto(prompt)
+    provedor = _get_provedor()
 
-    try:
-        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
-        response = client.models.generate_images(
-            model='imagen-3.0-generate-002',
-            prompt=clean_prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1,
-                aspect_ratio='1:1',
-            ),
-        )
-        image_bytes = response.generated_images[0].image.image_bytes
+    if provedor == 'imagen3':
+        image_bytes = _gerar_imagem_imagen3(clean_prompt)
         with open(filepath, 'wb') as f:
             f.write(image_bytes)
-    except Exception as imagen_err:
-        print(f"  [aviso] Imagen 3 falhou ({imagen_err}) — usando Pollinations.ai como fallback")
+
+    elif provedor == 'fal_flux':
+        image_bytes = _gerar_imagem_fal(clean_prompt)
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+
+    else:  # pollinations (padrão)
         image_url = _pollinations_url(cliente_id, dia_semana, clean_prompt)
         resp = requests.get(image_url, timeout=120)
         resp.raise_for_status()
