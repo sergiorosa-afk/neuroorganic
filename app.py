@@ -491,11 +491,12 @@ def admin_configuracoes():
 @app.route('/admin/gerar', methods=['POST'])
 @login_required
 def admin_gerar():
-    if not current_user.is_admin:
-        abort(403)
-    cliente_id, redir = _require_admin_cliente()
-    if redir:
-        return redir
+    if current_user.is_admin:
+        cliente_id, redir = _require_admin_cliente()
+        if redir:
+            return redir
+    else:
+        cliente_id = current_user.cliente_id
 
     from datetime import date as _date
     from generate import gerar_posts_hoje
