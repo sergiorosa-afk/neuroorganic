@@ -164,6 +164,10 @@ def reprovar_post(post_id):
 @app.route('/prompts')
 @login_required
 def admin_prompts():
+    if current_user.is_admin:
+        cid_param = request.args.get('cliente_id', type=int)
+        if cid_param:
+            session['admin_cliente_id'] = cid_param
     cliente_id, redir = _get_cliente_id()
     if redir:
         return redir
