@@ -5,6 +5,9 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+# MEDIUMTEXT (16 MB) no MySQL; TEXT ilimitado no SQLite
+_BIGTEXT = db.Text(16777215)
+
 class Cliente(db.Model):
     __tablename__ = 'clientes'
     id = db.Column(db.Integer, primary_key=True)
@@ -54,9 +57,6 @@ DIAS_LABEL = {
     'quinta': 'Quinta-feira',
     'sexta': 'Sexta-feira',
 }
-
-# MEDIUMTEXT (16 MB) no MySQL; TEXT ilimitado no SQLite
-_BIGTEXT = db.Text(16777215)
 
 class PromptEstilo(db.Model):
     __tablename__ = 'prompts_estilo'
