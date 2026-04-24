@@ -31,6 +31,36 @@
     <p class="text-xs text-gray-400 mt-2">O logo aparece centralizado no rodapé de todas as imagens geradas.</p>
     {% endif %}
 
+    <!-- Cores da marca -->
+    <form method="POST" action="{{ url_for('salvar_cores', cliente_id=cliente_sel.id) }}" class="mt-5 pt-5 border-t border-gray-100">
+        <label class="block text-sm font-semibold text-gray-800 mb-1">Cores da marca</label>
+        <p class="text-xs text-gray-500 mb-3">A cor primária é usada no destaque do título das imagens geradas. Deixe em branco para usar o padrão dourado.</p>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <input type="color" name="cor_primaria"
+                    value="{{ cliente_sel.cor_primaria or '#f5a623' }}"
+                    class="h-9 w-14 rounded border border-gray-200 cursor-pointer p-0.5">
+                <div>
+                    <div class="text-xs font-medium text-gray-700">Cor primária</div>
+                    <div class="text-xs text-gray-400">Destaque do título</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="color" name="cor_secundaria"
+                    value="{{ cliente_sel.cor_secundaria or '#ffffff' }}"
+                    class="h-9 w-14 rounded border border-gray-200 cursor-pointer p-0.5">
+                <div>
+                    <div class="text-xs font-medium text-gray-700">Cor secundária</div>
+                    <div class="text-xs text-gray-400">Reservado para uso futuro</div>
+                </div>
+            </div>
+            <button type="submit"
+                class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition whitespace-nowrap">
+                Salvar cores
+            </button>
+        </div>
+    </form>
+
     <form method="POST" action="{{ url_for('salvar_contexto', cliente_id=cliente_sel.id) }}" class="mt-5 pt-5 border-t border-gray-100">
         <label class="block text-sm font-semibold text-gray-800 mb-1">Contexto da marca</label>
         <p class="text-xs text-gray-500 mb-2">Descreva quem é a empresa, público-alvo e proposta de valor. O Gemini usa isso para gerar textos e imagens alinhados à marca.</p>

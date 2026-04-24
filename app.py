@@ -325,6 +325,19 @@ def salvar_contexto(cliente_id):
     return redirect(url_for('admin_prompts'))
 
 
+@app.route('/cliente/<int:cliente_id>/cores', methods=['POST'])
+@login_required
+def salvar_cores(cliente_id):
+    if not current_user.is_admin and current_user.cliente_id != cliente_id:
+        abort(403)
+    cliente = Cliente.query.get_or_404(cliente_id)
+    cliente.cor_primaria = request.form.get('cor_primaria', '').strip() or None
+    cliente.cor_secundaria = request.form.get('cor_secundaria', '').strip() or None
+    db.session.commit()
+    flash('Cores da marca salvas com sucesso.', 'success')
+    return redirect(url_for('admin_prompts'))
+
+
 @app.route('/cliente/<int:cliente_id>/logo', methods=['POST'])
 @login_required
 def upload_logo(cliente_id):

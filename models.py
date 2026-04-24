@@ -13,6 +13,8 @@ class Cliente(db.Model):
     make_webhook_url = db.Column(db.Text)
     gemini_api_key = db.Column(db.Text)
     logo_url = db.Column(db.Text)
+    cor_primaria = db.Column(db.String(7))   # ex: #760e0e
+    cor_secundaria = db.Column(db.String(7)) # ex: #fd8e16
     planejamento_texto = db.Column(db.Text, default='')
     contexto = db.Column(db.Text, default='')
     ativo = db.Column(db.Boolean, default=True)

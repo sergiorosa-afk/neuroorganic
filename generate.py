@@ -159,7 +159,8 @@ def gerar_posts_hoje(data=None, cliente_id=None):
                                        titulo=titulo, subheadline=subheadline,
                                        cta=cta, logo_path=logo_path,
                                        contexto=contexto,
-                                       api_key=cliente.gemini_api_key)
+                                       api_key=cliente.gemini_api_key,
+                                       cor_primaria=cliente.cor_primaria)
 
             post = Post(
                 cliente_id=cliente.id,
@@ -220,7 +221,8 @@ def regerar_post(post):
     imagem_url = _gerar_imagem(post.cliente_id, post.dia_semana, prompt_img,
                                titulo=titulo, subheadline=subheadline,
                                cta=cta, logo_path=logo_path, contexto=contexto,
-                               api_key=post.cliente.gemini_api_key)
+                               api_key=post.cliente.gemini_api_key,
+                               cor_primaria=post.cliente.cor_primaria)
 
     if post.status == 'pendente':
         post.status = 'reprovado'
@@ -364,7 +366,12 @@ def _extrair_subheadline_cta(legenda):
     return subheadline.strip(), cta.strip()
 
 
-def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="", logo_path=None):
+def _hex_to_rgba(hex_color, alpha=255):
+    h = hex_color.lstrip('#')
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4)) + (alpha,)
+
+
+def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="", logo_path=None, cor_primaria=None):
     """Premium Pillow text overlay — Apple/Nike editorial style."""
     from PIL import Image, ImageDraw, ImageFont
 
@@ -372,7 +379,7 @@ def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="", logo_path=N
     font_oswald = os.path.join(base, "static", "fonts", "Oswald.ttf")
     font_mont  = os.path.join(base, "static", "fonts", "Montserrat.ttf")
 
-    GOLD      = (245, 166, 35, 255)
+    GOLD      = _hex_to_rgba(cor_primaria) if cor_primaria else (245, 166, 35, 255)
     WHITE     = (255, 255, 255, 255)
     WHITE_DIM = (220, 220, 220, 210)
     SHADOW    = (0, 0, 0, 170)
@@ -519,7 +526,7 @@ def _gerar_imagem_imagen3(prompt, api_key=None):
     raise ValueError('Nenhuma imagem retornada pelo modelo')
 
 
-def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None, contexto="", api_key=None):
+def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta="", logo_path=None, contexto="", api_key=None, cor_primaria=None):
     """Generate image using configured provider, then compose text overlay."""
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_dir, exist_ok=True)
@@ -551,7 +558,7 @@ def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta
     _crop_portrait(filepath)
 
     if titulo:
-        compor_texto_na_imagem(filepath, titulo, subheadline=subheadline, cta=cta or "", logo_path=logo_path)
+        compor_texto_na_imagem(filepath, titulo, subheadline=subheadline, cta=cta or "", logo_path=logo_path, cor_primaria=cor_primaria)
 
     return f"/static/uploads/{filename}"
 
@@ -640,6 +647,7 @@ def gerar_do_planejamento(cliente, entry):
         titulo=entry['titulo'],
         logo_path=logo_path,
         api_key=cliente.gemini_api_key,
+        cor_primaria=cliente.cor_primaria,
     )
 
     post = Post(
