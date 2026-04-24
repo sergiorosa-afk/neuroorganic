@@ -123,8 +123,10 @@ def dashboard():
     }
 
     from datetime import date as _date
+    cliente_sel = Cliente.query.get(cliente_id)
     return render_template('dashboard.html', posts=posts, contadores=contadores,
-                           DIAS_LABEL=DIAS_LABEL, today=_date.today().isoformat())
+                           DIAS_LABEL=DIAS_LABEL, today=_date.today().isoformat(),
+                           cliente_sel=cliente_sel)
 
 
 # ── Aprovação / Reprovação de posts ───────────────────────────────────────────
