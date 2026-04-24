@@ -594,11 +594,17 @@ def diag_logo(cliente_id):
     cliente = Cliente.query.get_or_404(cliente_id)
     from generate import _logo_filepath
     logo_path = _logo_filepath(cliente.logo_url)
+    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+    logos_dir = os.path.join(uploads_dir, 'logos')
     return jsonify({
         'logo_url': cliente.logo_url,
         'root_path': app.root_path,
         'logo_path': logo_path,
         'exists': os.path.exists(logo_path) if logo_path else False,
+        'uploads_dir_exists': os.path.exists(uploads_dir),
+        'logos_dir_exists': os.path.exists(logos_dir),
+        'logos_dir_contents': os.listdir(logos_dir) if os.path.exists(logos_dir) else 'DIR_NOT_FOUND',
+        'uploads_contents': os.listdir(uploads_dir)[:10] if os.path.exists(uploads_dir) else 'DIR_NOT_FOUND',
     })
 
 
