@@ -589,6 +589,19 @@ def _base_url():
     return os.environ.get('REQUEST_BASE_URL', request.host_url.rstrip('/'))
 
 
+@app.route('/api/diag/logo/<int:cliente_id>')
+def diag_logo(cliente_id):
+    cliente = Cliente.query.get_or_404(cliente_id)
+    from generate import _logo_filepath
+    logo_path = _logo_filepath(cliente.logo_url)
+    return jsonify({
+        'logo_url': cliente.logo_url,
+        'root_path': app.root_path,
+        'logo_path': logo_path,
+        'exists': os.path.exists(logo_path) if logo_path else False,
+    })
+
+
 @app.route('/api/posts/publicar')
 def api_posts_publicar():
     _check_token()
