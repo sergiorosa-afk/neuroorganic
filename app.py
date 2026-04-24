@@ -355,9 +355,17 @@ def upload_logo(cliente_id):
         return redirect(url_for('admin_prompts'))
 
     logos_dir = os.path.join(app.root_path, 'static', 'uploads', 'logos')
-    os.makedirs(logos_dir, exist_ok=True)
-    filename = f'logo_{cliente_id}{ext}'
-    f.save(os.path.join(logos_dir, filename))
+    try:
+        os.makedirs(logos_dir, exist_ok=True)
+        filename = f'logo_{cliente_id}{ext}'
+        filepath = os.path.join(logos_dir, filename)
+        f.save(filepath)
+        if not os.path.exists(filepath):
+            flash(f'Erro: arquivo não encontrado após salvar em {filepath}', 'error')
+            return redirect(url_for('admin_prompts'))
+    except Exception as e:
+        flash(f'Erro ao salvar logo: {e}', 'error')
+        return redirect(url_for('admin_prompts'))
     cliente.logo_url = f'/static/uploads/logos/{filename}'
     db.session.commit()
     flash('Logo salvo com sucesso.', 'success')
