@@ -584,7 +584,14 @@ def api_posts_publicar():
     else:
         alvo = date_cls.today()
 
-    posts = Post.query.filter_by(status='aprovado', data_publicacao=alvo).all()
+    cliente_handle = request.args.get('cliente')
+    if cliente_handle:
+        cliente_obj = Cliente.query.filter_by(instagram_handle=cliente_handle).first()
+        if not cliente_obj:
+            return jsonify(error=f'Cliente "{cliente_handle}" não encontrado.'), 404
+        posts = Post.query.filter_by(status='aprovado', data_publicacao=alvo, cliente_id=cliente_obj.id).all()
+    else:
+        posts = Post.query.filter_by(status='aprovado', data_publicacao=alvo).all()
 
     base = _base_url()
     result = []
