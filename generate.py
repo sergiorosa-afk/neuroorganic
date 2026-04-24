@@ -203,17 +203,27 @@ def regerar_post(post):
     if not prompt_estilo:
         raise ValueError(f"Sem prompt ativo para {post.dia_semana}")
 
-    client = _gemini_client(api_key=post.cliente.gemini_api_key)
-
     contexto = post.cliente.contexto or ""
-    titulo, legenda, prompt_img = _gerar_texto(
-        client,
-        prompt_estilo.intencao,
-        prompt_estilo.prompt_imagem,
-        feedback=post.feedback,
-        titulo_anterior=post.titulo,
-        contexto=contexto,
-    )
+    subheadline = prompt_estilo.texto_subheadline or ""
+
+    # Se há entrada no planejamento para esta data, mantém título e legenda
+    entries = parsear_planejamento(post.cliente.planejamento_texto or '')
+    entry_planejada = next((e for e in entries if e['data'] == post.data_publicacao), None)
+
+    if entry_planejada:
+        titulo = post.titulo
+        legenda = post.legenda
+        prompt_img = (prompt_estilo.prompt_imagem or '').replace('{intencao_do_dia}', titulo)
+    else:
+        client = _gemini_client(api_key=post.cliente.gemini_api_key)
+        titulo, legenda, prompt_img = _gerar_texto(
+            client,
+            prompt_estilo.intencao,
+            prompt_estilo.prompt_imagem,
+            feedback=post.feedback,
+            titulo_anterior=post.titulo,
+            contexto=contexto,
+        )
 
     subheadline = prompt_estilo.texto_subheadline or ""
     cta = prompt_estilo.texto_cta or ""
