@@ -602,24 +602,6 @@ def _base_url():
     return os.environ.get('REQUEST_BASE_URL', request.host_url.rstrip('/'))
 
 
-@app.route('/api/diag/logo/<int:cliente_id>')
-def diag_logo(cliente_id):
-    cliente = Cliente.query.get_or_404(cliente_id)
-    from generate import _logo_filepath
-    logo_path = _logo_filepath(cliente.logo_url)
-    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
-    logos_dir = os.path.join(uploads_dir, 'logos')
-    return jsonify({
-        'logo_url': cliente.logo_url,
-        'root_path': app.root_path,
-        'logo_path': logo_path,
-        'exists': os.path.exists(logo_path) if logo_path else False,
-        'uploads_dir_exists': os.path.exists(uploads_dir),
-        'logos_dir_exists': os.path.exists(logos_dir),
-        'logos_dir_contents': os.listdir(logos_dir) if os.path.exists(logos_dir) else 'DIR_NOT_FOUND',
-        'uploads_contents': os.listdir(uploads_dir)[:10] if os.path.exists(uploads_dir) else 'DIR_NOT_FOUND',
-    })
-
 
 @app.route('/api/posts/publicar')
 def api_posts_publicar():
@@ -647,11 +629,13 @@ def api_posts_publicar():
     base = _base_url()
     result = []
     for p in posts:
+        if not p.imagem_url:
+            continue
         result.append({
             'id': p.id,
             'titulo': p.titulo,
             'legenda': p.legenda,
-            'imagem_url': f"{base}{p.imagem_url}" if p.imagem_url else None,
+            'imagem_url': f"{base}{p.imagem_url}",
             'instagram_handle': p.cliente.instagram_handle,
             'data_publicacao': p.data_publicacao.strftime('%d/%m/%Y'),
             'marcar_publicado_url': f"{base}/api/posts/{p.id}/publicado?token={os.environ.get('CRON_SECRET', 'token123')}",
