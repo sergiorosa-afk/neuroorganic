@@ -363,7 +363,7 @@ def _logo_filepath(logo_url):
     """Convert a /static/... URL to an absolute file path, or return None."""
     if not logo_url:
         return None
-    return os.path.join(os.path.dirname(__file__), logo_url.lstrip('/'))
+    return os.path.join(current_app.root_path, logo_url.lstrip('/'))
 
 
 def _extrair_subheadline_cta(legenda):
