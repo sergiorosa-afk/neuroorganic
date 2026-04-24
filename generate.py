@@ -536,6 +536,8 @@ def _gerar_imagem(cliente_id, dia_semana, prompt, titulo="", subheadline="", cta
     clean_prompt = _prompt_sem_texto(prompt)
     if contexto:
         clean_prompt = f"{clean_prompt} Brand context: {contexto}"
+    if cor_primaria:
+        clean_prompt = f"{clean_prompt} Use brand color palette with dominant color {cor_primaria} as accent in the scene."
     provedor = _get_provedor()
 
     if provedor == 'imagen3':
