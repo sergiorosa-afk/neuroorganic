@@ -650,6 +650,7 @@ def api_marcar_publicado(post_id):
     post = Post.query.get_or_404(post_id)
     if post.status == 'aprovado':
         post.status = 'publicado'
+        post.publicado_em = datetime.utcnow()
         db.session.commit()
     return jsonify(ok=True, post_id=post_id, status=post.status)
 
