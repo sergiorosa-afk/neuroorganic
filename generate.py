@@ -136,7 +136,7 @@ def gerar_posts_hoje(data=None, cliente_id=None):
         try:
             subheadline = prompt_estilo.texto_subheadline or ""
             cta = prompt_estilo.texto_cta or ""
-            logo_path = _logo_filepath(cliente.logo_url)
+            logo_path = _logo_filepath(cliente.logo_data or cliente.logo_url)
             contexto = cliente.contexto or ""
             gemini_client = _gemini_client(api_key=cliente.gemini_api_key)
 
@@ -227,7 +227,7 @@ def regerar_post(post):
 
     subheadline = prompt_estilo.texto_subheadline or ""
     cta = prompt_estilo.texto_cta or ""
-    logo_path = _logo_filepath(post.cliente.logo_url)
+    logo_path = _logo_filepath(post.cliente.logo_data or post.cliente.logo_url)
     imagem_url = _gerar_imagem(post.cliente_id, post.dia_semana, prompt_img,
                                titulo=titulo, subheadline=subheadline,
                                cta=cta, logo_path=logo_path, contexto=contexto,
@@ -359,11 +359,19 @@ def _crop_portrait(filepath, ratio=(3, 4)):
     img.save(filepath, "JPEG", quality=93)
 
 
-def _logo_filepath(logo_url):
-    """Convert a /static/... URL to an absolute file path, or return None."""
-    if not logo_url:
+def _logo_filepath(logo_url_or_data):
+    """Return absolute path to logo file, decoding from DB base64 if needed."""
+    if not logo_url_or_data:
         return None
-    return os.path.join(current_app.root_path, logo_url.lstrip('/'))
+    if logo_url_or_data.startswith('data:'):
+        import base64, tempfile
+        mime, b64 = logo_url_or_data.split(',', 1)
+        ext = '.png' if 'png' in mime else '.jpg'
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=os.path.join(current_app.root_path, 'tmp'))
+        tmp.write(base64.b64decode(b64))
+        tmp.close()
+        return tmp.name
+    return os.path.join(current_app.root_path, logo_url_or_data.lstrip('/'))
 
 
 def _extrair_subheadline_cta(legenda):
@@ -652,7 +660,7 @@ def gerar_do_planejamento(cliente, entry):
         '{intencao_do_dia}', entry['titulo']
     )
 
-    logo_path = _logo_filepath(cliente.logo_url)
+    logo_path = _logo_filepath(cliente.logo_data or cliente.logo_url)
     imagem_url = _gerar_imagem(
         cliente.id, dia_semana,
         prompt_img,

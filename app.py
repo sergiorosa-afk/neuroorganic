@@ -338,9 +338,22 @@ def salvar_cores(cliente_id):
     return redirect(url_for('admin_prompts'))
 
 
+@app.route('/cliente/<int:cliente_id>/logo-img')
+def serve_logo(cliente_id):
+    import base64
+    from flask import Response
+    cliente = Cliente.query.get_or_404(cliente_id)
+    if not cliente.logo_data:
+        abort(404)
+    mime, b64 = cliente.logo_data.split(',', 1)
+    mime_type = mime.split(':')[1].split(';')[0]
+    return Response(base64.b64decode(b64), mimetype=mime_type)
+
+
 @app.route('/cliente/<int:cliente_id>/logo', methods=['POST'])
 @login_required
 def upload_logo(cliente_id):
+    import base64
     if not current_user.is_admin and current_user.cliente_id != cliente_id:
         abort(403)
     cliente = Cliente.query.get_or_404(cliente_id)
@@ -350,23 +363,15 @@ def upload_logo(cliente_id):
         return redirect(url_for('admin_prompts'))
 
     ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in ('.png', '.jpg', '.jpeg', '.svg'):
+    mime_map = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml'}
+    if ext not in mime_map:
         flash('Formato inválido. Use PNG, JPG ou SVG.', 'error')
         return redirect(url_for('admin_prompts'))
 
-    logos_dir = os.path.join(app.root_path, 'static', 'uploads', 'logos')
-    try:
-        os.makedirs(logos_dir, exist_ok=True)
-        filename = f'logo_{cliente_id}{ext}'
-        filepath = os.path.join(logos_dir, filename)
-        f.save(filepath)
-        if not os.path.exists(filepath):
-            flash(f'Erro: arquivo não encontrado após salvar em {filepath}', 'error')
-            return redirect(url_for('admin_prompts'))
-    except Exception as e:
-        flash(f'Erro ao salvar logo: {e}', 'error')
-        return redirect(url_for('admin_prompts'))
-    cliente.logo_url = f'/static/uploads/logos/{filename}'
+    data = f.read()
+    b64 = base64.b64encode(data).decode('utf-8')
+    cliente.logo_data = f'data:{mime_map[ext]};base64,{b64}'
+    cliente.logo_url = url_for('serve_logo', cliente_id=cliente_id)
     db.session.commit()
     flash('Logo salvo com sucesso.', 'success')
     return redirect(url_for('admin_prompts'))
