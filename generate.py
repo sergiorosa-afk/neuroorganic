@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import time
 import requests
 from datetime import date, timedelta
 
@@ -8,6 +9,29 @@ import fal_client
 from google import genai
 from google.genai import types
 from flask import current_app
+
+_GEMINI_FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash']
+
+
+def _gemini_generate_with_retry(client, model, contents, config, max_retries=3):
+    """Call generate_content with retry + model fallback on 503/429."""
+    models_to_try = [model] + [m for m in _GEMINI_FALLBACK_MODELS if m != model]
+    last_exc = None
+    for attempt, try_model in enumerate(models_to_try):
+        for retry in range(max_retries if attempt == 0 else 1):
+            try:
+                return client.models.generate_content(
+                    model=try_model, contents=contents, config=config
+                )
+            except Exception as e:
+                msg = str(e)
+                if '503' in msg or 'UNAVAILABLE' in msg or '429' in msg or 'quota' in msg.lower():
+                    last_exc = e
+                    if retry < max_retries - 1:
+                        time.sleep(2 ** retry)
+                    continue
+                raise
+    raise last_exc
 
 DIAS_MAP = {0: 'segunda', 1: 'terca', 2: 'quarta', 3: 'quinta', 4: 'sexta'}
 
@@ -308,7 +332,8 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
         f"Escreva o prompt_imagem em inglês."
     )
 
-    response = client.models.generate_content(
+    response = _gemini_generate_with_retry(
+        client,
         model="gemini-2.5-flash",
         contents=user_message,
         config=types.GenerateContentConfig(
@@ -781,7 +806,8 @@ Legenda: Próxima legenda...
     )
 
     client = _gemini_client(api_key=cliente.gemini_api_key)
-    response = client.models.generate_content(
+    response = _gemini_generate_with_retry(
+        client,
         model='gemini-2.5-flash',
         contents=user_message,
         config=types.GenerateContentConfig(
