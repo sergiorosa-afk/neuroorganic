@@ -14,23 +14,43 @@ _GEMINI_FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash']
 
 
 def _gemini_generate_with_retry(client, model, contents, config, max_retries=3):
-    """Call generate_content with retry + model fallback on 503/429."""
-    models_to_try = [model] + [m for m in _GEMINI_FALLBACK_MODELS if m != model]
+    """Call generate_content with retry on 503 and model fallback.
+
+    503 UNAVAILABLE → retry with backoff, then fallback model.
+    429 RESOURCE_EXHAUSTED com 'limit: 0' → quota zerada, falha imediata.
+    429 rate-limit normal → retry com backoff, sem fallback de modelo.
+    """
+    def _is_quota_zero(msg):
+        return 'limit: 0' in msg or 'RESOURCE_EXHAUSTED' in msg and 'free_tier' in msg
+
     last_exc = None
-    for attempt, try_model in enumerate(models_to_try):
-        for retry in range(max_retries if attempt == 0 else 1):
+    # Try primary model first with retries
+    for retry in range(max_retries):
+        try:
+            return client.models.generate_content(
+                model=model, contents=contents, config=config
+            )
+        except Exception as e:
+            msg = str(e)
+            if _is_quota_zero(msg):
+                raise  # cota zerada — não adianta retry nem fallback
+            if '503' in msg or 'UNAVAILABLE' in msg or '429' in msg:
+                last_exc = e
+                if retry < max_retries - 1:
+                    time.sleep(2 ** retry)
+                continue
+            raise
+
+    # Only fallback on transient unavailability (503), not quota issues
+    if last_exc and ('503' in str(last_exc) or 'UNAVAILABLE' in str(last_exc)):
+        for fallback in [m for m in _GEMINI_FALLBACK_MODELS if m != model]:
             try:
                 return client.models.generate_content(
-                    model=try_model, contents=contents, config=config
+                    model=fallback, contents=contents, config=config
                 )
-            except Exception as e:
-                msg = str(e)
-                if '503' in msg or 'UNAVAILABLE' in msg or '429' in msg or 'quota' in msg.lower():
-                    last_exc = e
-                    if retry < max_retries - 1:
-                        time.sleep(2 ** retry)
-                    continue
-                raise
+            except Exception:
+                continue
+
     raise last_exc
 
 DIAS_MAP = {0: 'segunda', 1: 'terca', 2: 'quarta', 3: 'quinta', 4: 'sexta'}
