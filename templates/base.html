@@ -18,6 +18,7 @@
             {% if cid %}
             <a href="{{ url_for('dashboard') }}" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
             <a href="{{ url_for('admin_prompts') }}" class="text-sm text-gray-600 hover:text-gray-900">Prompts</a>
+            <a href="{{ url_for('admin_layouts') }}" class="text-sm text-gray-600 hover:text-gray-900">Temas Visuais</a>
             <a href="{{ url_for('admin_planejamento') }}" class="text-sm text-gray-600 hover:text-gray-900">Planejamento</a>
             <a href="{{ url_for('admin_configuracoes') }}" class="text-sm text-gray-600 hover:text-gray-900">Configurações</a>
             <a href="{{ url_for('admin_clientes') }}" class="text-sm text-gray-600 hover:text-gray-900">Clientes</a>
@@ -33,6 +34,7 @@
         {% else %}
             <a href="{{ url_for('dashboard') }}" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
             <a href="{{ url_for('admin_prompts') }}" class="text-sm text-gray-600 hover:text-gray-900">Prompts</a>
+            <a href="{{ url_for('admin_layouts') }}" class="text-sm text-gray-600 hover:text-gray-900">Temas Visuais</a>
             <a href="{{ url_for('admin_planejamento') }}" class="text-sm text-gray-600 hover:text-gray-900">Planejamento</a>
             <a href="{{ url_for('admin_configuracoes') }}" class="text-sm text-gray-600 hover:text-gray-900">Configurações</a>
         {% endif %}

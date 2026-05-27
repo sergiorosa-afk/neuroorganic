@@ -26,6 +26,7 @@ class Cliente(db.Model):
 
     usuarios = db.relationship('Usuario', backref='cliente', lazy=True)
     prompts = db.relationship('PromptEstilo', backref='cliente', lazy=True)
+    layouts = db.relationship('PromptLayout', backref='cliente', lazy=True)
     posts = db.relationship('Post', backref='cliente', lazy=True)
 
 class Usuario(UserMixin, db.Model):
@@ -73,6 +74,51 @@ class PromptEstilo(db.Model):
     __table_args__ = (
         db.UniqueConstraint('cliente_id', 'dia_semana', name='uq_cliente_dia'),
     )
+
+class PromptLayout(db.Model):
+    """Tema visual parametrizado com vigência por data."""
+    __tablename__ = 'prompt_layouts'
+    id = db.Column(db.Integer, primary_key=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False)
+    nome = db.Column(db.String(120), nullable=False)
+    descricao = db.Column(db.Text, default='')
+    vigente_de = db.Column(db.Date, nullable=True)
+    vigente_ate = db.Column(db.Date, nullable=True)
+    ativo = db.Column(db.Boolean, default=True)
+    # Campos parametrizados (preenchidos pelo cliente ou pela IA)
+    cenario = db.Column(db.Text, default='')
+    estilo_visual = db.Column(db.String(80), default='photorealistic')
+    personagens = db.Column(db.Text, default='')
+    iluminacao = db.Column(db.String(80), default='')
+    elementos_visuais = db.Column(db.Text, default='')
+    humor = db.Column(db.String(200), default='')
+    paleta = db.Column(db.String(40), default='marca')
+    restricoes = db.Column(db.Text, default='')
+    # Prompt final montado automaticamente
+    prompt_gerado = db.Column(_BIGTEXT, default='')
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def vigencia_label(self):
+        if self.vigente_de and self.vigente_ate:
+            return f"{self.vigente_de.strftime('%d/%m/%Y')} → {self.vigente_ate.strftime('%d/%m/%Y')}"
+        if self.vigente_de:
+            return f"A partir de {self.vigente_de.strftime('%d/%m/%Y')}"
+        if self.vigente_ate:
+            return f"Até {self.vigente_ate.strftime('%d/%m/%Y')}"
+        return "Sem vigência (sempre ativo)"
+
+    def vigente_para(self, data):
+        """Retorna True se o layout é válido para a data informada."""
+        if not self.ativo:
+            return False
+        if self.vigente_de and data < self.vigente_de:
+            return False
+        if self.vigente_ate and data > self.vigente_ate:
+            return False
+        return True
+
 
 class Configuracao(db.Model):
     __tablename__ = 'configuracoes'

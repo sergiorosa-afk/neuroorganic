@@ -55,6 +55,130 @@ def _gemini_generate_with_retry(client, model, contents, config, max_retries=3):
 
 DIAS_MAP = {0: 'segunda', 1: 'terca', 2: 'quarta', 3: 'quinta', 4: 'sexta'}
 
+# ── PromptLayout — montagem e seleção ─────────────────────────────────────────
+
+_PALETA_MAP = {
+    'marca':    'Use brand accent colors naturally integrated into the scene',
+    'terroso':  'Earthy warm color palette: terracotta, ochre, sienna, warm browns',
+    'vibrante': 'Vibrant saturated colors, high contrast, energetic palette',
+    'pastel':   'Soft pastel color palette, gentle, dreamy and airy tones',
+}
+
+_INSTAGRAM_BASE = (
+    "Vertical portrait 3:4 format (1080x1440px) optimized for Instagram feed. "
+    "Clean negative space in the lower third for text overlay. "
+    "No text, no letters, no typography in the image itself. "
+    "Shallow depth of field, candid authentic emotion, 8K quality."
+)
+
+
+def montar_prompt_imagem(layout):
+    """Assemble parametric fields into a Flux-compatible English image prompt."""
+    parts = []
+
+    estilo = (layout.estilo_visual or 'photorealistic').strip()
+    parts.append(f"{estilo} photography, high production value, cinematic quality")
+
+    if layout.iluminacao and layout.iluminacao.strip():
+        parts.append(layout.iluminacao.strip())
+
+    if layout.cenario and layout.cenario.strip():
+        parts.append(f"Scene: {layout.cenario.strip()}")
+
+    if layout.personagens and layout.personagens.strip():
+        parts.append(f"Subject: {layout.personagens.strip()}")
+
+    if layout.elementos_visuais and layout.elementos_visuais.strip():
+        parts.append(f"Featuring: {layout.elementos_visuais.strip()}")
+
+    if layout.humor and layout.humor.strip():
+        parts.append(f"Mood: {layout.humor.strip()}")
+
+    paleta_key = (layout.paleta or 'marca').strip()
+    if paleta_key in _PALETA_MAP:
+        parts.append(_PALETA_MAP[paleta_key])
+
+    parts.append(_INSTAGRAM_BASE)
+
+    if layout.restricoes and layout.restricoes.strip():
+        parts.append(f"Avoid: {layout.restricoes.strip()}")
+
+    return " ".join(p.rstrip('. ') + '.' for p in parts if p.strip())
+
+
+def get_layout_ativo(cliente_id, data):
+    """Return the best PromptLayout for a given client and date.
+
+    Priority: exact date-range match → open-ended (no dates) → most recent.
+    Returns None if no active layouts exist.
+    """
+    from models import PromptLayout
+
+    layouts = PromptLayout.query.filter_by(cliente_id=cliente_id, ativo=True).all()
+    if not layouts:
+        return None
+
+    # Priority 1: layout with date range that covers the target date
+    ranged = [l for l in layouts if l.vigente_de or l.vigente_ate]
+    for l in ranged:
+        if l.vigente_para(data):
+            return l
+
+    # Priority 2: layout with no date restriction (always active)
+    for l in layouts:
+        if not l.vigente_de and not l.vigente_ate:
+            return l
+
+    # Priority 3: most recently created active layout
+    return sorted(layouts, key=lambda l: l.criado_em, reverse=True)[0]
+
+
+def preencher_campos_ia(descricao, gemini_api_key=None):
+    """Parse a natural language description and return parametric fields as dict.
+
+    Uses Gemini to extract visual parameters, returns them in English
+    ready to fill the PromptLayout form.
+    """
+    client = _gemini_client(api_key=gemini_api_key)
+
+    system = """You are an expert visual art director specializing in Instagram content for the Brazilian market.
+
+Given a creative brief (in any language), extract visual style parameters and return them as JSON.
+Translate ALL descriptive values to English for the image generation AI.
+
+Return ONLY this JSON structure, no other text:
+{
+  "cenario": "setting/environment in English (empty string if unclear)",
+  "estilo_visual": "exactly one of: photorealistic, cinematic, editorial, lifestyle, documentary",
+  "personagens": "subject/people description in English (empty string if none)",
+  "iluminacao": "exactly one of: natural soft light, golden hour, studio lighting, dramatic lighting, night festive lighting",
+  "elementos_visuais": "specific props and visual elements in English (empty string if none)",
+  "humor": "mood and emotion descriptors in English",
+  "paleta": "exactly one of: marca, terroso, vibrante, pastel",
+  "restricoes": "what to avoid in English (empty string if none)"
+}
+
+Rules:
+- "paleta: marca" when brand colors are mentioned or implied
+- "paleta: terroso" for rustic, earthy, natural, festive June party themes
+- "paleta: vibrante" for energetic, colorful, festive themes
+- "paleta: pastel" for soft, romantic, delicate themes
+- For June party (Festa Junina): paleta=terroso, iluminacao=night festive lighting
+- For Valentine's Day: paleta=pastel or vibrante, humor=romantic loving
+- Always use "natural soft light" as default iluminacao if not specified"""
+
+    response = _gemini_generate_with_retry(
+        client,
+        model='gemini-2.5-flash',
+        contents=f"Extract visual parameters from this creative brief:\n\n{descricao}",
+        config=types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=0.2,
+        ),
+    )
+
+    return json.loads(_fix_json(response.text.strip()))
+
 BASE_SYSTEM_PROMPT = """You are a world-class Brazilian social media content specialist and Instagram marketing expert with deep expertise in consumer psychology, behavioral economics, and viral content creation for the Brazilian market.
 
 Your role is to create highly engaging Instagram content that resonates authentically with the brand's specific audience. You MUST follow the brand context provided — it defines who the audience is, what they look like, what they feel, and what visual style fits them.
@@ -131,13 +255,14 @@ def _gemini_client(api_key=None):
     )
 
 
-def gerar_posts_hoje(data=None, cliente_id=None):
+def gerar_posts_hoje(data=None, cliente_id=None, prompt_layout_id=None):
     """Generate posts for active clients for the given date (default: today).
 
     If cliente_id is given, generates only for that client.
+    If prompt_layout_id is given, uses that specific layout instead of auto-detecting.
     Returns a list of created Post objects.
     """
-    from models import db, Cliente, PromptEstilo, Post
+    from models import db, Cliente, PromptEstilo, Post, PromptLayout
 
     alvo = data or date.today()
     dia_num = alvo.weekday()
@@ -184,17 +309,27 @@ def gerar_posts_hoje(data=None, cliente_id=None):
             contexto = cliente.contexto or ""
             gemini_client = _gemini_client(api_key=cliente.gemini_api_key)
 
+            # Seleciona o layout visual: explícito > automático por data > fallback legacy
+            if prompt_layout_id:
+                layout = PromptLayout.query.get(prompt_layout_id)
+            else:
+                layout = get_layout_ativo(cliente.id, alvo)
+
+            template_visual = (
+                layout.prompt_gerado if layout and layout.prompt_gerado
+                else (prompt_estilo.prompt_imagem or '')
+            )
+            layout_info = f" via layout '{layout.nome}'" if layout else " (prompt direto)"
+
             if entry_planejada:
-                print(f"[{cliente.nome}] Usando planejamento para {alvo}...")
+                print(f"[{cliente.nome}] Usando planejamento para {alvo}{layout_info}...")
                 titulo = entry_planejada['titulo']
                 legenda = entry_planejada['legenda']
-                prompt_img = (prompt_estilo.prompt_imagem or '').replace(
-                    '{intencao_do_dia}', titulo
-                )
+                prompt_img = template_visual.replace('{intencao_do_dia}', titulo)
             else:
-                print(f"[{cliente.nome}] Gerando conteúdo via IA ({dia_semana})...")
+                print(f"[{cliente.nome}] Gerando conteúdo via IA ({dia_semana}{layout_info})...")
                 titulo, legenda, prompt_img = _gerar_texto(
-                    gemini_client, prompt_estilo.intencao, prompt_estilo.prompt_imagem,
+                    gemini_client, prompt_estilo.intencao, template_visual,
                     contexto=contexto,
                 )
 
@@ -236,7 +371,7 @@ def regerar_post(post):
     Must be called within a Flask application context.
     Returns the new Post object.
     """
-    from models import db, PromptEstilo, Post
+    from models import db, PromptEstilo, Post, PromptLayout
 
     prompt_estilo = PromptEstilo.query.filter_by(
         cliente_id=post.cliente_id,
@@ -250,6 +385,12 @@ def regerar_post(post):
     contexto = post.cliente.contexto or ""
     subheadline = prompt_estilo.texto_subheadline or ""
 
+    layout = get_layout_ativo(post.cliente_id, post.data_publicacao)
+    template_visual = (
+        layout.prompt_gerado if layout and layout.prompt_gerado
+        else (prompt_estilo.prompt_imagem or '')
+    )
+
     # Se há entrada no planejamento para esta data, mantém título e legenda
     entries = parsear_planejamento(post.cliente.planejamento_texto or '')
     entry_planejada = next((e for e in entries if e['data'] == post.data_publicacao), None)
@@ -257,13 +398,13 @@ def regerar_post(post):
     if entry_planejada:
         titulo = post.titulo
         legenda = post.legenda
-        prompt_img = (prompt_estilo.prompt_imagem or '').replace('{intencao_do_dia}', titulo)
+        prompt_img = template_visual.replace('{intencao_do_dia}', titulo)
     else:
         client = _gemini_client(api_key=post.cliente.gemini_api_key)
         titulo, legenda, prompt_img = _gerar_texto(
             client,
             prompt_estilo.intencao,
-            prompt_estilo.prompt_imagem,
+            template_visual,
             feedback=post.feedback,
             titulo_anterior=post.titulo,
             contexto=contexto,

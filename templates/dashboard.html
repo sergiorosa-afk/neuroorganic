@@ -253,8 +253,28 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
             <input type="date" name="data_publicacao"
                    value="{{ today }}"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-5
+                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4
                           focus:outline-none focus:ring-2 focus:ring-indigo-300">
+
+            {% if layouts %}
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tema visual</label>
+            <select name="prompt_layout_id"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4
+                       focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                <option value="">Automático (detecta por data)</option>
+                {% for l in layouts %}
+                <option value="{{ l.id }}">
+                    {{ l.nome }}{% if l.vigente_de or l.vigente_ate %} — {{ l.vigencia_label }}{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <p class="text-xs text-gray-400 mb-4">
+                Nenhum tema visual ativo.
+                <a href="{{ url_for('admin_layouts') }}" class="text-indigo-500 hover:underline">Criar tema →</a>
+            </p>
+            {% endif %}
+
             <div class="flex gap-3">
                 <button type="submit" id="btn-gerar"
                     class="flex-1 py-2 bg-indigo-600 text-white text-sm font-medium

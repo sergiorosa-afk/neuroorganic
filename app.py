@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
-from models import db, Usuario, Cliente, PromptEstilo, Post, Configuracao, DIAS, DIAS_LABEL
+from models import db, Usuario, Cliente, PromptEstilo, Post, PromptLayout, Configuracao, DIAS, DIAS_LABEL
 from datetime import datetime
 
 app = Flask(__name__)
@@ -124,9 +124,12 @@ def dashboard():
 
     from datetime import date as _date
     cliente_sel = Cliente.query.get(cliente_id)
+    layouts_disponiveis = PromptLayout.query.filter_by(
+        cliente_id=cliente_id, ativo=True
+    ).order_by(PromptLayout.nome).all()
     return render_template('dashboard.html', posts=posts, contadores=contadores,
                            DIAS_LABEL=DIAS_LABEL, today=_date.today().isoformat(),
-                           cliente_sel=cliente_sel)
+                           cliente_sel=cliente_sel, layouts=layouts_disponiveis)
 
 
 # ── Aprovação / Reprovação de posts ───────────────────────────────────────────
@@ -377,6 +380,148 @@ def upload_logo(cliente_id):
     return redirect(url_for('admin_prompts'))
 
 
+# ── Temas Visuais (PromptLayout) ─────────────────────────────────────────────
+
+@app.route('/layouts')
+@login_required
+def admin_layouts():
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
+    cliente_sel = Cliente.query.get_or_404(cliente_id)
+    layouts = PromptLayout.query.filter_by(cliente_id=cliente_id)\
+        .order_by(PromptLayout.criado_em.desc()).all()
+    edit_id = request.args.get('edit', type=int)
+    edit_layout = PromptLayout.query.get(edit_id) if edit_id else None
+    if edit_layout and edit_layout.cliente_id != cliente_id:
+        edit_layout = None
+    return render_template('admin/layouts.html',
+                           cliente_sel=cliente_sel,
+                           layouts=layouts,
+                           edit_layout=edit_layout)
+
+
+@app.route('/layouts/salvar', methods=['POST'])
+@login_required
+def salvar_layout():
+    from generate import montar_prompt_imagem
+
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
+
+    layout_id = request.form.get('layout_id', type=int)
+    if layout_id:
+        layout = PromptLayout.query.get_or_404(layout_id)
+        if layout.cliente_id != cliente_id:
+            abort(403)
+    else:
+        layout = PromptLayout(cliente_id=cliente_id)
+        db.session.add(layout)
+
+    layout.nome = request.form.get('nome', '').strip()
+    layout.descricao = request.form.get('descricao', '').strip()
+
+    vde = request.form.get('vigente_de', '').strip()
+    vate = request.form.get('vigente_ate', '').strip()
+    try:
+        layout.vigente_de = datetime.strptime(vde, '%Y-%m-%d').date() if vde else None
+        layout.vigente_ate = datetime.strptime(vate, '%Y-%m-%d').date() if vate else None
+    except ValueError:
+        layout.vigente_de = None
+        layout.vigente_ate = None
+
+    layout.cenario = request.form.get('cenario', '').strip()
+    layout.estilo_visual = request.form.get('estilo_visual', 'photorealistic').strip()
+    layout.personagens = request.form.get('personagens', '').strip()
+    layout.iluminacao = request.form.get('iluminacao', '').strip()
+    layout.elementos_visuais = request.form.get('elementos_visuais', '').strip()
+    layout.humor = request.form.get('humor', '').strip()
+    layout.paleta = request.form.get('paleta', 'marca').strip()
+    layout.restricoes = request.form.get('restricoes', '').strip()
+    layout.ativo = 'ativo' in request.form
+
+    layout.prompt_gerado = montar_prompt_imagem(layout)
+
+    db.session.commit()
+    flash(f'Tema "{layout.nome}" salvo com sucesso.', 'success')
+    return redirect(url_for('admin_layouts'))
+
+
+@app.route('/layouts/<int:layout_id>/toggle', methods=['POST'])
+@login_required
+def toggle_layout(layout_id):
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return jsonify(error='Empresa não selecionada'), 400
+    layout = PromptLayout.query.get_or_404(layout_id)
+    if layout.cliente_id != cliente_id:
+        abort(403)
+    layout.ativo = not layout.ativo
+    db.session.commit()
+    return jsonify(ok=True, ativo=layout.ativo, label='Ativo' if layout.ativo else 'Inativo')
+
+
+@app.route('/layouts/<int:layout_id>/deletar', methods=['POST'])
+@login_required
+def deletar_layout(layout_id):
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
+    layout = PromptLayout.query.get_or_404(layout_id)
+    if layout.cliente_id != cliente_id:
+        abort(403)
+    nome = layout.nome
+    db.session.delete(layout)
+    db.session.commit()
+    flash(f'Tema "{nome}" excluído.', 'success')
+    return redirect(url_for('admin_layouts'))
+
+
+@app.route('/layouts/ia-preencher', methods=['POST'])
+@login_required
+def layouts_ia_preencher():
+    from generate import preencher_campos_ia
+
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return jsonify(error='Empresa não selecionada'), 400
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    data = request.get_json(silent=True) or {}
+    descricao = data.get('descricao', '').strip()
+    if not descricao:
+        return jsonify(error='Descrição não informada'), 400
+
+    try:
+        campos = preencher_campos_ia(descricao, gemini_api_key=cliente.gemini_api_key)
+        return jsonify(ok=True, campos=campos)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@app.route('/layouts/preview-prompt', methods=['POST'])
+@login_required
+def layouts_preview_prompt():
+    from generate import montar_prompt_imagem
+
+    class _TempLayout:
+        pass
+
+    l = _TempLayout()
+    data = request.get_json(silent=True) or {}
+    l.cenario = data.get('cenario', '')
+    l.estilo_visual = data.get('estilo_visual', 'photorealistic')
+    l.personagens = data.get('personagens', '')
+    l.iluminacao = data.get('iluminacao', '')
+    l.elementos_visuais = data.get('elementos_visuais', '')
+    l.humor = data.get('humor', '')
+    l.paleta = data.get('paleta', 'marca')
+    l.restricoes = data.get('restricoes', '')
+
+    return jsonify(ok=True, prompt=montar_prompt_imagem(l))
+
+
 # ── Admin — Clientes ──────────────────────────────────────────────────────────
 
 @app.route('/admin/clientes')
@@ -538,8 +683,9 @@ def admin_gerar():
     except ValueError:
         flash('Data inválida.', 'error')
         return redirect(url_for('dashboard'))
+    prompt_layout_id = request.form.get('prompt_layout_id', type=int) or None
     try:
-        posts = gerar_posts_hoje(data=alvo, cliente_id=cliente_id)
+        posts = gerar_posts_hoje(data=alvo, cliente_id=cliente_id, prompt_layout_id=prompt_layout_id)
         if posts:
             flash(f'{len(posts)} post(s) gerado(s) para {alvo.strftime("%d/%m/%Y")}!', 'success')
         else:
@@ -661,6 +807,13 @@ def api_marcar_publicado(post_id):
 def init_db():
     db.create_all()
     print('Tabelas criadas.')
+
+
+@app.cli.command('migrar-layouts')
+def migrar_layouts():
+    """Cria a tabela prompt_layouts (nova funcionalidade de temas visuais)."""
+    db.create_all()
+    print('Tabela prompt_layouts criada (ou já existia).')
 
 
 @app.cli.command('criar-admin')
