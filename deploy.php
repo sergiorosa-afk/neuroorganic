@@ -199,6 +199,28 @@ migrations = [
     "ALTER TABLE clientes ADD COLUMN cor_primaria VARCHAR(7)",
     "ALTER TABLE clientes ADD COLUMN cor_secundaria VARCHAR(7)",
     "CREATE TABLE IF NOT EXISTS configuracoes (chave VARCHAR(50) PRIMARY KEY, valor VARCHAR(255) NOT NULL)",
+    # Sprint de Temas Visuais — PromptLayout
+    """CREATE TABLE IF NOT EXISTS prompt_layouts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        cliente_id INT NOT NULL,
+        nome VARCHAR(120) NOT NULL,
+        descricao TEXT,
+        vigente_de DATE,
+        vigente_ate DATE,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        cenario TEXT,
+        estilo_visual VARCHAR(80) DEFAULT 'photorealistic',
+        personagens TEXT,
+        iluminacao VARCHAR(80),
+        elementos_visuais TEXT,
+        humor VARCHAR(200),
+        paleta VARCHAR(40) DEFAULT 'marca',
+        restricoes TEXT,
+        prompt_gerado MEDIUMTEXT,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
 ]
 
 with app.app_context():
