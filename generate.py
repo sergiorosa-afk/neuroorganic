@@ -364,6 +364,109 @@ def gerar_posts_hoje(data=None, cliente_id=None, prompt_layout_id=None):
     return gerados
 
 
+def gerar_texto_carrossel(intencao, template_visual, num_frames, contexto="", gemini_api_key=None):
+    """Generate carousel content: title, one Instagram caption, and per-frame text+prompt.
+
+    Returns (titulo_carrossel, legenda, frames) where frames is a list of dicts:
+    [{titulo, texto_frame, prompt_imagem}, ...]
+    """
+    client = _gemini_client(api_key=gemini_api_key)
+
+    frame_roles = {
+        2: [
+            "Frame 1 — GANCHO: Headline de impacto que para o scroll. Visual de abertura forte.",
+            "Frame 2 — REVELAÇÃO + CTA: Desenvolvimento + chamada para ação clara. Visual de encerramento.",
+        ],
+        3: [
+            "Frame 1 — GANCHO: Headline de impacto que para o scroll. Visual de abertura forte.",
+            "Frame 2 — DESENVOLVIMENTO: Aprofunda o conteúdo, cria conexão emocional.",
+            "Frame 3 — CONCLUSÃO + CTA: Fechamento poderoso + chamada para ação. Visual de encerramento.",
+        ],
+    }
+    roles_txt = "\n".join(f"  {r}" for r in frame_roles.get(num_frames, frame_roles[2]))
+
+    user_message = (
+        f"Crie um CARROSSEL do Instagram com {num_frames} frames.\n\n"
+        f"INTENÇÃO DO CONTEÚDO: {intencao}\n\n"
+        f"TEMPLATE VISUAL BASE:\n{template_visual}\n\n"
+        f"ESTRUTURA DOS FRAMES:\n{roles_txt}\n\n"
+        f"Retorne APENAS JSON válido com esta estrutura exata:\n"
+        '{\n'
+        '  "titulo_carrossel": "Título geral do carrossel (máx 80 chars, gancho irresistível)",\n'
+        '  "legenda": "Legenda única do Instagram (800-1200 chars, \\n\\n entre seções, 6-10 emojis, CTA + 5 hashtags no final)",\n'
+        '  "frames": [\n'
+        '    {\n'
+        '      "titulo": "Texto overlay desta imagem (máx 52 chars, impacto máximo)",\n'
+        '      "texto_frame": "Texto de apoio curto (máx 110 chars, complementa o título)",\n'
+        '      "prompt_imagem": "English Flux prompt — UNIQUE scene for this specific frame"\n'
+        '    }\n'
+        '  ]\n'
+        '}\n\n'
+        'RULES:\n'
+        '- Each frame has a DIFFERENT visual scene (unique prompt_imagem per frame)\n'
+        '- Frame titles: short, punchy, different from each other\n'
+        '- All prompt_imagem values in English, refine the template visual for that frame role\n'
+        '- Caption (legenda) guides the reader through all frames as a story arc\n'
+        f'- Return exactly {num_frames} frames (no more, no less)'
+    )
+
+    response = _gemini_generate_with_retry(
+        client,
+        model="gemini-2.5-flash",
+        contents=user_message,
+        config=types.GenerateContentConfig(
+            system_instruction=_build_system_prompt(contexto),
+            temperature=0.7,
+        ),
+    )
+
+    data = json.loads(_fix_json(response.text.strip()))
+    frames = data.get("frames", [])[:num_frames]
+    return data["titulo_carrossel"], data["legenda"], frames
+
+
+def gerar_frame_carrossel(post, frame_index):
+    """Generate a single carousel frame image and update post.frames_json.
+
+    Must be called within Flask app context.
+    Returns the image URL for the generated frame.
+    """
+    import json as _json
+    from models import db
+
+    frames = _json.loads(post.frames_json or '[]')
+    if frame_index >= len(frames):
+        raise ValueError(f"Frame {frame_index} não existe (total: {len(frames)})")
+
+    frame = frames[frame_index]
+    cliente = post.cliente
+    logo_path = _logo_filepath(cliente.logo_data or cliente.logo_url)
+
+    imagem_url = _gerar_imagem(
+        cliente.id,
+        f"cr{frame_index}",
+        frame['prompt_imagem'],
+        titulo=frame['titulo'],
+        subheadline=frame.get('texto_frame', ''),
+        cta="",
+        logo_path=logo_path,
+        contexto=cliente.contexto or "",
+        api_key=cliente.gemini_api_key,
+        cor_primaria=cliente.cor_primaria,
+    )
+
+    frames[frame_index]['imagem_url'] = imagem_url
+    post.frames_json = _json.dumps(frames, ensure_ascii=False)
+
+    if all(f.get('imagem_url') for f in frames):
+        post.status = 'pendente'
+        post.imagem_url = frames[0]['imagem_url']
+        post.prompt_usado = " | ".join(f['prompt_imagem'] for f in frames)
+
+    db.session.commit()
+    return imagem_url
+
+
 def regerar_post(post):
     """Regenerate a post using its feedback as context for Gemini.
 

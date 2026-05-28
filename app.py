@@ -718,6 +718,115 @@ def regerar_post(post_id):
     return redirect(url_for('dashboard'))
 
 
+@app.route('/admin/gerar-carrossel', methods=['POST'])
+@login_required
+def admin_gerar_carrossel():
+    import json as _json
+    from datetime import date as _date
+    from generate import gerar_texto_carrossel, get_layout_ativo, DIAS_MAP
+
+    if current_user.is_admin:
+        cliente_id, redir = _require_admin_cliente()
+        if redir:
+            return jsonify(error='Empresa não selecionada'), 400
+    else:
+        cliente_id = current_user.cliente_id
+
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    data_str = request.form.get('data_publicacao', '').strip()
+    num_frames = request.form.get('num_frames', type=int) or 2
+    num_frames = max(2, min(3, num_frames))
+    prompt_layout_id = request.form.get('prompt_layout_id', type=int) or None
+
+    try:
+        alvo = _date.fromisoformat(data_str) if data_str else _date.today()
+    except ValueError:
+        return jsonify(error='Data inválida'), 400
+
+    dia_num = alvo.weekday()
+    if dia_num >= 5:
+        return jsonify(error='Fim de semana — escolha um dia útil.'), 400
+
+    dia_semana = DIAS_MAP[dia_num]
+
+    prompt_estilo = PromptEstilo.query.filter_by(
+        cliente_id=cliente_id, dia_semana=dia_semana, ativo=True
+    ).first()
+    if not prompt_estilo:
+        return jsonify(error=f'Sem prompt configurado para {dia_semana}. Configure em Prompts.'), 400
+
+    if prompt_layout_id:
+        layout = PromptLayout.query.get(prompt_layout_id)
+    else:
+        layout = get_layout_ativo(cliente_id, alvo)
+
+    template_visual = (
+        layout.prompt_gerado if layout and layout.prompt_gerado
+        else (prompt_estilo.prompt_imagem or '')
+    )
+
+    try:
+        titulo_carrossel, legenda, frames = gerar_texto_carrossel(
+            intencao=prompt_estilo.intencao,
+            template_visual=template_visual,
+            num_frames=num_frames,
+            contexto=cliente.contexto or '',
+            gemini_api_key=cliente.gemini_api_key,
+        )
+    except Exception as e:
+        return jsonify(error=f'Erro ao gerar roteiro: {e}'), 500
+
+    frames_data = [
+        {
+            'titulo': f.get('titulo', f'Frame {i + 1}'),
+            'texto_frame': f.get('texto_frame', ''),
+            'prompt_imagem': f.get('prompt_imagem', template_visual),
+            'imagem_url': None,
+        }
+        for i, f in enumerate(frames[:num_frames])
+    ]
+
+    post = Post(
+        cliente_id=cliente_id,
+        tipo='carrossel',
+        dia_semana=dia_semana,
+        data_publicacao=alvo,
+        titulo=titulo_carrossel,
+        legenda=legenda,
+        imagem_url=None,
+        prompt_usado=None,
+        status='gerando',
+        frames_json=_json.dumps(frames_data, ensure_ascii=False),
+    )
+    db.session.add(post)
+    db.session.commit()
+
+    return jsonify(ok=True, post_id=post.id, frames=[
+        {'titulo': f['titulo'], 'texto_frame': f['texto_frame']}
+        for f in frames_data
+    ])
+
+
+@app.route('/api/gerar-frame/<int:post_id>/<int:frame_index>', methods=['POST'])
+@login_required
+def api_gerar_frame(post_id, frame_index):
+    if current_user.is_admin:
+        post = Post.query.get_or_404(post_id)
+    else:
+        post = Post.query.filter_by(id=post_id, cliente_id=current_user.cliente_id).first_or_404()
+
+    if post.tipo != 'carrossel':
+        return jsonify(error='Post não é um carrossel'), 400
+
+    from generate import gerar_frame_carrossel
+    try:
+        imagem_url = gerar_frame_carrossel(post, frame_index)
+        return jsonify(ok=True, imagem_url=imagem_url, status=post.status)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
 @app.route('/cron/gerar', methods=['POST'])
 def cron_gerar():
     """HTTP endpoint for scheduled post generation."""
@@ -775,17 +884,38 @@ def api_posts_publicar():
     base = _base_url()
     result = []
     for p in posts:
-        if not p.imagem_url:
-            continue
-        result.append({
-            'id': p.id,
-            'titulo': p.titulo,
-            'legenda': p.legenda,
-            'imagem_url': f"{base}{p.imagem_url}",
-            'instagram_handle': p.cliente.instagram_handle,
-            'data_publicacao': p.data_publicacao.strftime('%d/%m/%Y'),
-            'marcar_publicado_url': f"{base}/api/posts/{p.id}/publicado?token={os.environ.get('CRON_SECRET', 'token123')}",
-        })
+        token = os.environ.get('CRON_SECRET', 'token123')
+        marcar_url = f"{base}/api/posts/{p.id}/publicado?token={token}"
+
+        if p.tipo == 'carrossel':
+            frames = p.frames
+            imagens = [f"{base}{f['imagem_url']}" for f in frames if f.get('imagem_url')]
+            if not imagens:
+                continue
+            result.append({
+                'id': p.id,
+                'tipo': 'carrossel',
+                'titulo': p.titulo,
+                'legenda': p.legenda,
+                'imagem_url': imagens[0],
+                'imagens': imagens,
+                'instagram_handle': p.cliente.instagram_handle,
+                'data_publicacao': p.data_publicacao.strftime('%d/%m/%Y'),
+                'marcar_publicado_url': marcar_url,
+            })
+        else:
+            if not p.imagem_url:
+                continue
+            result.append({
+                'id': p.id,
+                'tipo': 'post',
+                'titulo': p.titulo,
+                'legenda': p.legenda,
+                'imagem_url': f"{base}{p.imagem_url}",
+                'instagram_handle': p.cliente.instagram_handle,
+                'data_publicacao': p.data_publicacao.strftime('%d/%m/%Y'),
+                'marcar_publicado_url': marcar_url,
+            })
 
     return jsonify(result)
 

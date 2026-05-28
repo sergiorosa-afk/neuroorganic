@@ -144,15 +144,28 @@ class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
     cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False)
+    tipo = db.Column(db.Enum('post', 'carrossel'), default='post', nullable=False)
     dia_semana = db.Column(db.Enum(*DIAS))
     data_publicacao = db.Column(db.Date)
     titulo = db.Column(db.String(255))
     legenda = db.Column(_BIGTEXT)
     imagem_url = db.Column(_BIGTEXT)
+    frames_json = db.Column(_BIGTEXT, nullable=True)
     prompt_usado = db.Column(_BIGTEXT)
-    status = db.Column(db.Enum('pendente', 'aprovado', 'reprovado', 'publicado'), default='pendente')
+    status = db.Column(db.Enum('pendente', 'aprovado', 'reprovado', 'publicado', 'gerando'), default='pendente')
     feedback = db.Column(_BIGTEXT)
     aprovado_por = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     aprovado_em = db.Column(db.DateTime, nullable=True)
     publicado_em = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def frames(self):
+        """Parse frames_json into list of dicts."""
+        if self.tipo == 'carrossel' and self.frames_json:
+            import json
+            try:
+                return json.loads(self.frames_json)
+            except Exception:
+                return []
+        return []

@@ -199,6 +199,10 @@ migrations = [
     "ALTER TABLE clientes ADD COLUMN cor_primaria VARCHAR(7)",
     "ALTER TABLE clientes ADD COLUMN cor_secundaria VARCHAR(7)",
     "CREATE TABLE IF NOT EXISTS configuracoes (chave VARCHAR(50) PRIMARY KEY, valor VARCHAR(255) NOT NULL)",
+    # Sprint Carrossel — novas colunas em posts
+    "ALTER TABLE posts ADD COLUMN tipo ENUM('post', 'carrossel') NOT NULL DEFAULT 'post'",
+    "ALTER TABLE posts ADD COLUMN frames_json MEDIUMTEXT",
+    "ALTER TABLE posts MODIFY COLUMN status ENUM('pendente', 'aprovado', 'reprovado', 'publicado', 'gerando') NOT NULL DEFAULT 'pendente'",
     # Sprint de Temas Visuais — PromptLayout
     """CREATE TABLE IF NOT EXISTS prompt_layouts (
         id INT AUTO_INCREMENT PRIMARY KEY,

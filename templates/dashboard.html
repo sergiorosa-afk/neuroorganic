@@ -37,10 +37,57 @@
 {% if posts %}
 <div class="space-y-4">
     {% for post in posts %}
+    {% set is_carousel = post.tipo == 'carrossel' %}
+    {% set is_gerando = post.status == 'gerando' %}
+    {% set frames = post.frames %}
+
     <div class="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
         <div class="flex flex-col md:flex-row">
 
-            <!-- Imagem — clicável para abrir modal -->
+            <!-- Thumbnail area -->
+            {% if is_gerando %}
+            <!-- Gerando: spinner -->
+            <div class="md:w-56 flex-shrink-0 bg-indigo-50 flex flex-col items-center justify-center gap-3 min-h-[14rem]">
+                <div class="animate-spin h-9 w-9 border-[3px] border-indigo-400 border-t-transparent rounded-full"></div>
+                <span class="text-xs text-indigo-400 font-medium">Gerando carrossel…</span>
+                <span class="text-xs text-indigo-300">{{ frames | length }} frame(s)</span>
+            </div>
+
+            {% elif is_carousel %}
+            <!-- Carrossel: thumbnail empilhado -->
+            <div class="md:w-56 flex-shrink-0 relative" style="padding: 4px 4px 0 0;">
+                <!-- Efeito de stacking -->
+                <div class="absolute inset-0 bg-gray-300 rounded-lg" style="transform: translate(5px,5px); z-index:0;"></div>
+                <div class="absolute inset-0 bg-gray-200 rounded-lg" style="transform: translate(2.5px,2.5px); z-index:1;"></div>
+                <!-- Imagem principal -->
+                <div class="relative cursor-pointer group rounded-lg overflow-hidden" style="z-index:2;"
+                     onclick="openCarousel('carousel-{{ post.id }}')">
+                    {% if post.imagem_url %}
+                    <img src="{{ post.imagem_url }}"
+                         class="w-full h-56 md:h-full object-cover"
+                         alt="Carrossel {{ post.titulo }}">
+                    {% else %}
+                    <div class="w-full h-56 md:h-full bg-gray-100 flex items-center justify-center text-gray-300 text-sm min-h-[14rem]">
+                        Sem imagem
+                    </div>
+                    {% endif %}
+                    <!-- Hover overlay -->
+                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all flex items-center justify-center">
+                        <span class="opacity-0 group-hover:opacity-100 transition text-white text-xs bg-black/50 px-3 py-1.5 rounded-full">
+                            Ver carrossel
+                        </span>
+                    </div>
+                    <!-- Badge CARROSSEL -->
+                    <div class="absolute top-2 left-2 flex gap-1">
+                        <span class="bg-black/70 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                            🎠 {{ frames | length }}×
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {% else %}
+            <!-- Post normal -->
             <div class="md:w-56 flex-shrink-0 relative cursor-pointer group"
                  onclick="openModal('modal-{{ post.id }}')">
                 {% if post.imagem_url %}
@@ -61,6 +108,7 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
 
             <!-- Conteúdo -->
             <div class="flex-1 p-5 flex flex-col justify-between min-w-0">
@@ -71,9 +119,13 @@
                             {% if post.status == 'pendente' %}bg-yellow-100 text-yellow-700
                             {% elif post.status == 'aprovado' %}bg-green-100 text-green-700
                             {% elif post.status == 'publicado' %}bg-blue-100 text-blue-700
+                            {% elif post.status == 'gerando' %}bg-indigo-100 text-indigo-600
                             {% else %}bg-red-100 text-red-600{% endif %}">
-                            {{ post.status|capitalize }}
+                            {% if post.status == 'gerando' %}Gerando…{% else %}{{ post.status|capitalize }}{% endif %}
                         </span>
+                        {% if is_carousel %}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">Carrossel</span>
+                        {% endif %}
                         {% if post.dia_semana %}
                         <span class="text-xs text-gray-400">{{ DIAS_LABEL[post.dia_semana] }}</span>
                         {% endif %}
@@ -128,7 +180,6 @@
                 {% if post.status == 'pendente' %}
                 <div class="mt-4 space-y-3">
                     <div class="flex flex-wrap gap-2">
-                        <!-- Aprovar -->
                         <form method="POST" action="{{ url_for('aprovar_post', post_id=post.id) }}">
                             <button type="submit"
                                 class="px-4 py-1.5 bg-green-600 text-white text-xs font-medium
@@ -136,13 +187,12 @@
                                 ✓ Aprovar
                             </button>
                         </form>
-                        <!-- Reprovar -->
                         <button onclick="toggle('feedback-{{ post.id }}')"
                             class="px-4 py-1.5 bg-red-100 text-red-600 text-xs font-medium
                                    rounded-lg hover:bg-red-200 transition">
                             ✕ Reprovar
                         </button>
-                        <!-- Regerar -->
+                        {% if not is_carousel %}
                         <form method="POST" action="{{ url_for('regerar_post', post_id=post.id) }}"
                               onsubmit="return confirm('Gerar novo post? Este será marcado como reprovado.')">
                             <button type="submit"
@@ -151,9 +201,9 @@
                                 ↺ Regerar
                             </button>
                         </form>
+                        {% endif %}
                     </div>
 
-                    <!-- Formulário de feedback (oculto) -->
                     <div id="feedback-{{ post.id }}" class="hidden">
                         <form method="POST" action="{{ url_for('reprovar_post', post_id=post.id) }}"
                               class="flex gap-2">
@@ -170,7 +220,7 @@
                     </div>
                 </div>
 
-                {% elif post.status == 'reprovado' %}
+                {% elif post.status == 'reprovado' and not is_carousel %}
                 <div class="mt-4">
                     <form method="POST" action="{{ url_for('regerar_post', post_id=post.id) }}"
                           onsubmit="return confirm('Gerar novo post com base no feedback?')">
@@ -186,7 +236,120 @@
         </div>
     </div>
 
-    <!-- Modal de preview completo -->
+    <!-- ── Modal de preview ────────────────────────────────────────────── -->
+
+    {% if is_carousel and not is_gerando %}
+    <!-- CAROUSEL VIEWER MODAL -->
+    <div id="carousel-{{ post.id }}"
+         class="hidden fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3"
+         onclick="if(event.target===this) closeCarousel('{{ post.id }}')">
+        <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl
+                    max-h-[95vh] flex flex-col">
+
+            <!-- Frame viewer -->
+            <div class="relative flex-shrink-0 bg-black"
+                 id="cv-img-area-{{ post.id }}"
+                 ontouchstart="cvTouchStart(event, '{{ post.id }}')"
+                 ontouchend="cvTouchEnd(event, '{{ post.id }}')">
+
+                {% for frame in frames %}
+                <div id="cvf-{{ post.id }}-{{ loop.index0 }}"
+                     class="{% if not loop.first %}hidden{% endif %} aspect-[3/4]">
+                    {% if frame.imagem_url %}
+                    <img src="{{ frame.imagem_url }}"
+                         class="w-full h-full object-contain"
+                         alt="{{ frame.titulo }}">
+                    {% else %}
+                    <div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300 text-sm aspect-[3/4]">
+                        Imagem não disponível
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <!-- Nav arrows (only if more than 1 frame) -->
+                {% if frames | length > 1 %}
+                <button onclick="cvPrev('{{ post.id }}')"
+                    class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70
+                           text-white rounded-full w-9 h-9 flex items-center justify-center
+                           text-lg transition z-10">
+                    ‹
+                </button>
+                <button onclick="cvNext('{{ post.id }}')"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70
+                           text-white rounded-full w-9 h-9 flex items-center justify-center
+                           text-lg transition z-10">
+                    ›
+                </button>
+                <!-- Dots -->
+                <div class="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                    {% for frame in frames %}
+                    <div id="cvd-{{ post.id }}-{{ loop.index0 }}"
+                         class="w-1.5 h-1.5 rounded-full transition-all
+                                {% if loop.first %}bg-white{% else %}bg-white/40{% endif %}">
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Counter -->
+                <div class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full z-10"
+                     id="cv-counter-{{ post.id }}">
+                    1 / {{ frames | length }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Info panel -->
+            <div class="p-4 overflow-y-auto flex-1">
+                <div class="flex justify-between items-start gap-2 mb-3">
+                    <h3 class="font-bold text-gray-900 leading-tight text-sm">{{ post.titulo }}</h3>
+                    <button onclick="closeCarousel('{{ post.id }}')"
+                        class="text-gray-400 hover:text-gray-600 text-lg flex-shrink-0 leading-none">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- Frame-specific text (changes with navigation) -->
+                {% for frame in frames %}
+                <div id="cvinfo-{{ post.id }}-{{ loop.index0 }}"
+                     class="{% if not loop.first %}hidden{% endif %} mb-3">
+                    <p class="text-xs text-indigo-500 font-semibold mb-0.5">
+                        Frame {{ loop.index }}{% if frames | length > 1 %} de {{ frames | length }}{% endif %}
+                    </p>
+                    <p class="text-sm font-semibold text-gray-800 leading-tight mb-1">{{ frame.titulo }}</p>
+                    {% if frame.texto_frame %}
+                    <p class="text-xs text-gray-500 leading-relaxed">{{ frame.texto_frame }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <!-- Full Instagram caption -->
+                <div class="border-t border-gray-100 pt-3">
+                    <p class="text-xs text-gray-400 font-medium mb-1">Legenda do Instagram</p>
+                    <p class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">{{ post.legenda }}</p>
+                </div>
+
+                {% if post.status == 'pendente' %}
+                <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                    <form method="POST" action="{{ url_for('aprovar_post', post_id=post.id) }}">
+                        <button type="submit"
+                            class="px-4 py-2 bg-green-600 text-white text-xs font-medium
+                                   rounded-lg hover:bg-green-700 transition">
+                            ✓ Aprovar
+                        </button>
+                    </form>
+                    <button onclick="closeCarousel('{{ post.id }}'); toggle('feedback-{{ post.id }}')"
+                        class="px-4 py-2 bg-red-100 text-red-600 text-xs font-medium
+                               rounded-lg hover:bg-red-200 transition">
+                        ✕ Reprovar
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% elif not is_carousel %}
+    <!-- NORMAL POST MODAL -->
     <div id="modal-{{ post.id }}"
          class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
          onclick="if(event.target===this) closeModal('modal-{{ post.id }}')">
@@ -229,6 +392,8 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
     {% endfor %}
 </div>
 
@@ -241,70 +406,132 @@
 </div>
 {% endif %}
 
-<!-- Modal: escolher data para gerar posts -->
+
+<!-- ── Modal: Gerar Post ─────────────────────────────────────────────────── -->
 <div id="modal-gerar"
      class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
-     onclick="if(event.target===this) document.getElementById('modal-gerar').classList.add('hidden')">
+     onclick="if(event.target===this) fecharModalGerar()">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-        <h2 class="text-lg font-bold text-gray-900 mb-1">✦ Gerar Posts</h2>
-        <p class="text-sm text-gray-500 mb-5">Escolha para qual data quer gerar os posts.</p>
-        <form method="POST" action="{{ url_for('admin_gerar') }}" id="form-gerar"
-              onsubmit="iniciarGeracao()">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
-            <input type="date" name="data_publicacao"
-                   value="{{ today }}"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4
-                          focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <h2 class="text-lg font-bold text-gray-900 mb-1">✦ Gerar Conteúdo</h2>
+        <p class="text-sm text-gray-500 mb-4">Que tipo de post quer criar?</p>
 
-            {% if layouts %}
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tema visual</label>
-            <select name="prompt_layout_id"
-                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4
-                       focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
-                <option value="">Automático (detecta por data)</option>
-                {% for l in layouts %}
-                <option value="{{ l.id }}">
-                    {{ l.nome }}{% if l.vigente_de or l.vigente_ate %} — {{ l.vigencia_label }}{% endif %}
-                </option>
-                {% endfor %}
-            </select>
-            {% else %}
-            <p class="text-xs text-gray-400 mb-4">
-                Nenhum tema visual ativo.
-                <a href="{{ url_for('admin_layouts') }}" class="text-indigo-500 hover:underline">Criar tema →</a>
-            </p>
-            {% endif %}
+        <!-- Tipo selector -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <button id="tipo-btn-post" onclick="escolherTipo('post')"
+                class="flex flex-col items-center gap-1.5 py-3 px-2 border-2 rounded-xl
+                       text-sm font-medium transition border-indigo-500 bg-indigo-50 text-indigo-700">
+                <span class="text-2xl">📸</span>
+                <span>Post Normal</span>
+            </button>
+            <button id="tipo-btn-carrossel" onclick="escolherTipo('carrossel')"
+                class="flex flex-col items-center gap-1.5 py-3 px-2 border-2 rounded-xl
+                       text-sm font-medium transition border-gray-200 bg-white text-gray-600 hover:border-gray-300">
+                <span class="text-2xl">🎠</span>
+                <span>Carrossel</span>
+            </button>
+        </div>
 
-            <div class="flex gap-3">
-                <button type="submit" id="btn-gerar"
-                    class="flex-1 py-2 bg-indigo-600 text-white text-sm font-medium
-                           rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2">
-                    <span id="btn-gerar-texto">Gerar</span>
-                    <svg id="btn-gerar-spinner" class="hidden animate-spin h-4 w-4 text-white"
-                         xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                        <path class="opacity-75" fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
+        <!-- Frames selector (carrossel only) -->
+        <div id="frames-selector" class="hidden mb-4">
+            <p class="text-xs font-medium text-gray-600 mb-2">Quantos frames?</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button id="frames-btn-2" onclick="escolherFrames(2)"
+                    class="py-2.5 border-2 rounded-lg text-sm font-medium transition
+                           border-indigo-500 bg-indigo-50 text-indigo-700">
+                    2 frames
+                    <span class="block text-xs font-normal text-indigo-400 mt-0.5">Rápido</span>
                 </button>
-                <button type="button" id="btn-cancelar"
-                    onclick="document.getElementById('modal-gerar').classList.add('hidden')"
-                    class="flex-1 py-2 bg-gray-100 text-gray-700 text-sm font-medium
-                           rounded-lg hover:bg-gray-200 transition">
-                    Cancelar
+                <button id="frames-btn-3" onclick="escolherFrames(3)"
+                    class="py-2.5 border-2 rounded-lg text-sm font-medium transition
+                           border-gray-200 bg-white text-gray-600 hover:border-gray-300">
+                    3 frames
+                    <span class="block text-xs font-normal text-gray-400 mt-0.5">Completo</span>
                 </button>
             </div>
+        </div>
+
+        <!-- Data -->
+        <label class="block text-xs font-medium text-gray-600 mb-1">Data</label>
+        <input id="input-data" type="date" value="{{ today }}"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4
+                      focus:outline-none focus:ring-2 focus:ring-indigo-300">
+
+        <!-- Layout selector -->
+        {% if layouts %}
+        <label class="block text-xs font-medium text-gray-600 mb-1">Tema visual</label>
+        <select id="input-layout"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4
+                   focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+            <option value="">Automático (detecta por data)</option>
+            {% for l in layouts %}
+            <option value="{{ l.id }}">
+                {{ l.nome }}{% if l.vigente_de or l.vigente_ate %} — {{ l.vigencia_label }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <p class="text-xs text-gray-400 mb-4">
+            Nenhum tema visual ativo.
+            <a href="{{ url_for('admin_layouts') }}" class="text-indigo-500 hover:underline">Criar tema →</a>
+        </p>
+        {% endif %}
+
+        <!-- Hidden form for post normal (sync POST) -->
+        <form id="form-gerar-post" method="POST" action="{{ url_for('admin_gerar') }}" class="hidden">
+            <input type="hidden" id="fgp-data" name="data_publicacao">
+            <input type="hidden" id="fgp-layout" name="prompt_layout_id">
         </form>
-        <!-- Estado de loading visível -->
-        <div id="gerar-loading" class="hidden mt-4 text-center">
-            <p class="text-sm text-indigo-600 font-medium animate-pulse">
-                ⏳ Gerando post com IA… isso leva cerca de 30 segundos.
+
+        <!-- Buttons -->
+        <div class="flex gap-3">
+            <button onclick="submitGerar()" id="btn-gerar"
+                class="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-medium
+                       rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+                <span id="btn-gerar-texto">Gerar</span>
+                <svg id="btn-gerar-spinner" class="hidden animate-spin h-4 w-4 text-white"
+                     xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+            </button>
+            <button onclick="fecharModalGerar()"
+                class="flex-1 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium
+                       rounded-lg hover:bg-gray-200 transition">
+                Cancelar
+            </button>
+        </div>
+
+        <div id="gerar-loading" class="hidden mt-3 text-center">
+            <p class="text-xs text-indigo-500 animate-pulse">
+                ⏳ Gerando com IA… aguarde cerca de 30 segundos.
             </p>
         </div>
     </div>
 </div>
 
+
+<!-- ── Carousel generation progress (floating card) ─────────────────────── -->
+<div id="carousel-progress"
+     class="hidden fixed bottom-4 right-4 z-50 bg-white rounded-2xl shadow-2xl
+            border border-gray-100 p-5 w-80 max-w-[calc(100vw-2rem)]">
+    <div class="flex items-center gap-3 mb-2.5">
+        <div id="cp-spinner"
+             class="animate-spin h-5 w-5 border-2 border-indigo-500 border-t-transparent
+                    rounded-full flex-shrink-0"></div>
+        <p id="cp-msg" class="text-sm font-medium text-gray-700"></p>
+    </div>
+    <div class="w-full bg-gray-100 rounded-full h-1.5 mb-3">
+        <div id="cp-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
+             style="width:0%"></div>
+    </div>
+    <div id="cp-frames" class="flex gap-2"></div>
+    <p id="cp-error" class="hidden mt-2 text-xs text-red-500 font-medium"></p>
+</div>
+
+
 <script>
+// ── Generic helpers ────────────────────────────────────────────────────────────
 function openModal(id) {
     document.getElementById(id).classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -316,12 +543,198 @@ function closeModal(id) {
 function toggle(id) {
     document.getElementById(id).classList.toggle('hidden');
 }
-function iniciarGeracao() {
-    document.getElementById('btn-gerar-texto').textContent = 'Gerando…';
-    document.getElementById('btn-gerar-spinner').classList.remove('hidden');
-    document.getElementById('btn-gerar').disabled = true;
-    document.getElementById('btn-cancelar').disabled = true;
-    document.getElementById('gerar-loading').classList.remove('hidden');
+
+// ── Carousel viewer ────────────────────────────────────────────────────────────
+const _cvState = {};
+
+function openCarousel(postId) {
+    _cvState[postId] = 0;
+    document.getElementById('carousel-' + postId).classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeCarousel(postId) {
+    document.getElementById('carousel-' + postId).classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function _cvGoto(postId, idx) {
+    const frames  = document.querySelectorAll('[id^="cvf-' + postId + '-"]');
+    const dots    = document.querySelectorAll('[id^="cvd-' + postId + '-"]');
+    const infos   = document.querySelectorAll('[id^="cvinfo-' + postId + '-"]');
+    const counter = document.getElementById('cv-counter-' + postId);
+
+    frames.forEach((f, i) => f.classList.toggle('hidden', i !== idx));
+    dots.forEach((d, i) => {
+        d.classList.toggle('bg-white', i === idx);
+        d.classList.toggle('bg-white/40', i !== idx);
+    });
+    infos.forEach((info, i) => info.classList.toggle('hidden', i !== idx));
+    if (counter) counter.textContent = (idx + 1) + ' / ' + frames.length;
+    _cvState[postId] = idx;
+}
+
+function cvPrev(postId) {
+    const frames = document.querySelectorAll('[id^="cvf-' + postId + '-"]');
+    const idx = _cvState[postId] || 0;
+    if (idx > 0) _cvGoto(postId, idx - 1);
+}
+
+function cvNext(postId) {
+    const frames = document.querySelectorAll('[id^="cvf-' + postId + '-"]');
+    const idx = _cvState[postId] || 0;
+    if (idx < frames.length - 1) _cvGoto(postId, idx + 1);
+}
+
+// Touch swipe for carousel
+let _cvTouchX = 0;
+function cvTouchStart(e, postId) {
+    _cvTouchX = e.touches[0].clientX;
+}
+function cvTouchEnd(e, postId) {
+    const delta = e.changedTouches[0].clientX - _cvTouchX;
+    if (delta < -50) cvNext(postId);
+    else if (delta > 50) cvPrev(postId);
+}
+
+// ── Modal gerar — tipo / frames selector ──────────────────────────────────────
+let _tipo = 'post';
+let _numFrames = 2;
+
+function escolherTipo(tipo) {
+    _tipo = tipo;
+    const isCarrossel = tipo === 'carrossel';
+
+    document.getElementById('tipo-btn-post').className =
+        'flex flex-col items-center gap-1.5 py-3 px-2 border-2 rounded-xl text-sm font-medium transition ' +
+        (!isCarrossel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300');
+
+    document.getElementById('tipo-btn-carrossel').className =
+        'flex flex-col items-center gap-1.5 py-3 px-2 border-2 rounded-xl text-sm font-medium transition ' +
+        (isCarrossel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300');
+
+    document.getElementById('frames-selector').classList.toggle('hidden', !isCarrossel);
+}
+
+function escolherFrames(n) {
+    _numFrames = n;
+    [2, 3].forEach(x => {
+        document.getElementById('frames-btn-' + x).className =
+            'py-2.5 border-2 rounded-lg text-sm font-medium transition ' +
+            (x === n ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300');
+    });
+}
+
+function fecharModalGerar() {
+    document.getElementById('modal-gerar').classList.add('hidden');
+}
+
+async function submitGerar() {
+    const data   = document.getElementById('input-data').value;
+    const layout = document.getElementById('input-layout') ? document.getElementById('input-layout').value : '';
+
+    if (_tipo === 'post') {
+        // Sync form POST — existing flow
+        document.getElementById('fgp-data').value   = data;
+        document.getElementById('fgp-layout').value = layout;
+        document.getElementById('btn-gerar-texto').textContent = 'Gerando…';
+        document.getElementById('btn-gerar-spinner').classList.remove('hidden');
+        document.getElementById('btn-gerar').disabled = true;
+        document.getElementById('gerar-loading').classList.remove('hidden');
+        document.getElementById('form-gerar-post').submit();
+        return;
+    }
+
+    // CARROSSEL: async AJAX flow
+    fecharModalGerar();
+    document.getElementById('carousel-progress').classList.remove('hidden');
+    _cpUpdate('Gerando roteiro com IA…', 5);
+    _cpClearError();
+
+    try {
+        // Step 1: generate text (fast ~5s)
+        const fd = new FormData();
+        fd.append('data_publicacao', data);
+        fd.append('num_frames', _numFrames);
+        if (layout) fd.append('prompt_layout_id', layout);
+
+        const r1 = await fetch('/admin/gerar-carrossel', { method: 'POST', body: fd });
+        const d1 = await r1.json();
+        if (!d1.ok) throw new Error(d1.error || 'Erro ao gerar roteiro');
+
+        const postId = d1.post_id;
+        const total  = d1.frames.length;
+
+        // Add frame placeholder slots
+        d1.frames.forEach((f, i) => _cpAddFrameSlot(i, f.titulo));
+
+        // Step 2: generate each frame image sequentially
+        for (let i = 0; i < total; i++) {
+            _cpUpdate(`Gerando imagem ${i + 1} de ${total}…`, Math.round(10 + (i / total) * 80));
+            _cpFrameState(i, 'loading');
+
+            const r2 = await fetch(`/api/gerar-frame/${postId}/${i}`, { method: 'POST' });
+            const d2 = await r2.json();
+            if (!d2.ok) throw new Error(d2.error || `Erro no frame ${i + 1}`);
+
+            _cpFrameState(i, 'done', d2.imagem_url);
+        }
+
+        _cpUpdate('Carrossel criado!', 100);
+        document.getElementById('cp-spinner').classList.add('hidden');
+        setTimeout(() => {
+            document.getElementById('carousel-progress').classList.add('hidden');
+            window.location.reload();
+        }, 1800);
+
+    } catch (err) {
+        _cpUpdate('Erro: ' + err.message, 0);
+        _cpShowError(err.message);
+        document.getElementById('cp-spinner').classList.add('hidden');
+    }
+}
+
+// ── Progress card helpers ──────────────────────────────────────────────────────
+function _cpUpdate(msg, pct) {
+    document.getElementById('cp-msg').textContent = msg;
+    document.getElementById('cp-bar').style.width = Math.max(0, pct) + '%';
+}
+
+function _cpClearError() {
+    const el = document.getElementById('cp-error');
+    el.textContent = '';
+    el.classList.add('hidden');
+}
+
+function _cpShowError(msg) {
+    const el = document.getElementById('cp-error');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+}
+
+function _cpAddFrameSlot(idx, titulo) {
+    const container = document.getElementById('cp-frames');
+    const slot = document.createElement('div');
+    slot.id = 'cp-frame-' + idx;
+    slot.className = 'flex flex-col items-center gap-1';
+    slot.innerHTML =
+        '<div class="w-10 h-14 rounded bg-gray-100 flex items-center justify-center overflow-hidden">' +
+            '<div class="cp-frame-spinner animate-spin h-4 w-4 border-2 border-gray-300 border-t-transparent rounded-full"></div>' +
+        '</div>' +
+        '<span class="text-xs text-gray-400 text-center w-10 truncate">' + (idx + 1) + '</span>';
+    container.appendChild(slot);
+}
+
+function _cpFrameState(idx, state, imgUrl) {
+    const slot = document.getElementById('cp-frame-' + idx);
+    if (!slot) return;
+    const thumb = slot.querySelector('div');
+    if (state === 'done' && imgUrl) {
+        thumb.innerHTML = '<img src="' + imgUrl + '" class="w-full h-full object-cover" alt="">';
+    } else if (state === 'loading') {
+        thumb.className = 'w-10 h-14 rounded bg-indigo-50 flex items-center justify-center overflow-hidden';
+        thumb.innerHTML = '<div class="animate-spin h-4 w-4 border-2 border-indigo-400 border-t-transparent rounded-full"></div>';
+    }
 }
 </script>
 {% endblock %}
