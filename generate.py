@@ -575,6 +575,33 @@ def _hex_to_rgba(hex_color, alpha=255):
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4)) + (alpha,)
 
 
+def _strip_emoji(text):
+    """Remove emoji characters that Oswald/Montserrat fonts cannot render (would show as □)."""
+    import re
+    emoji_re = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F700-\U0001F77F"  # alchemical symbols
+        "\U0001F780-\U0001F7FF"  # geometric shapes extended
+        "\U0001F800-\U0001F8FF"  # supplemental arrows-c
+        "\U0001F900-\U0001F9FF"  # supplemental symbols & pictographs
+        "\U0001FA00-\U0001FA6F"  # chess symbols
+        "\U0001FA70-\U0001FAFF"  # symbols & pictographs extended-a
+        "\U00002702-\U000027B0"  # dingbats
+        "\U000024C2-\U0001F251"
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "☀-⛿"          # miscellaneous symbols
+        "✀-➿"          # dingbats block
+        "︀-️"          # variation selectors
+        "‍"                  # zero-width joiner
+        "]+",
+        flags=re.UNICODE,
+    )
+    return emoji_re.sub('', text).strip()
+
+
 def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="", logo_path=None, cor_primaria=None):
     """Premium Pillow text overlay — Apple/Nike editorial style."""
     from PIL import Image, ImageDraw, ImageFont
@@ -616,8 +643,9 @@ def compor_texto_na_imagem(filepath, titulo, subheadline="", cta="", logo_path=N
 
     # ── Word-wrap headline ────────────────────────────────────────────────────
     max_w = int(w * 0.86)
+    titulo_limpo = _strip_emoji(titulo)
     hl_lines, current = [], ""
-    for word in titulo.upper().split():
+    for word in titulo_limpo.upper().split():
         test = (current + " " + word).strip()
         try:
             tw = font_h.getlength(test)
