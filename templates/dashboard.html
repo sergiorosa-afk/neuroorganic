@@ -54,35 +54,37 @@
             </div>
 
             {% elif is_carousel %}
-            <!-- Carrossel: thumbnail empilhado -->
-            <div class="md:w-56 flex-shrink-0 relative" style="padding: 4px 4px 0 0;">
-                <!-- Efeito de stacking -->
-                <div class="absolute inset-0 bg-gray-300 rounded-lg" style="transform: translate(5px,5px); z-index:0; pointer-events:none;"></div>
-                <div class="absolute inset-0 bg-gray-200 rounded-lg" style="transform: translate(2.5px,2.5px); z-index:1; pointer-events:none;"></div>
-                <!-- Imagem principal -->
-                <div class="relative cursor-pointer group rounded-lg overflow-hidden" style="z-index:2;"
-                     onclick="openCarousel('{{ post.id }}')">
-                    {% if post.imagem_url %}
-                    <img src="{{ post.imagem_url }}"
-                         class="w-full h-56 md:h-full object-cover"
-                         alt="Carrossel {{ post.titulo }}">
-                    {% else %}
-                    <div class="w-full h-56 md:h-full bg-gray-100 flex items-center justify-center text-gray-300 text-sm min-h-[14rem]">
-                        Sem imagem
-                    </div>
-                    {% endif %}
-                    <!-- Hover overlay -->
-                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all flex items-center justify-center">
-                        <span class="opacity-0 group-hover:opacity-100 transition text-white text-xs bg-black/50 px-3 py-1.5 rounded-full">
-                            Ver carrossel
-                        </span>
-                    </div>
-                    <!-- Badge CARROSSEL -->
-                    <div class="absolute top-2 left-2 flex gap-1">
-                        <span class="bg-black/70 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-                            🎠 {{ frames | length }}×
-                        </span>
-                    </div>
+            <!-- Carrossel: mesmo padrão do post normal, onclick no container externo -->
+            <div class="md:w-56 flex-shrink-0 relative cursor-pointer group"
+                 onclick="openModal('carousel-{{ post.id }}'); _cvState['{{ post.id }}'] = 0;">
+                <!-- Efeito de stacking (atrás da imagem, sem interferir no clique) -->
+                <div class="absolute inset-0 bg-gray-300 rounded-lg"
+                     style="transform:translate(5px,5px); pointer-events:none;"></div>
+                <div class="absolute inset-0 bg-gray-200 rounded-lg"
+                     style="transform:translate(2px,2px); pointer-events:none;"></div>
+                {% if post.imagem_url %}
+                <img src="{{ post.imagem_url }}"
+                     class="w-full h-56 md:h-full object-cover relative"
+                     alt="Carrossel {{ post.titulo }}">
+                {% else %}
+                <div class="w-full h-56 md:h-full bg-gray-100 flex items-center justify-center
+                            text-gray-300 text-sm relative">
+                    Sem imagem
+                </div>
+                {% endif %}
+                <!-- Hover overlay -->
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all
+                            flex items-center justify-center pointer-events-none">
+                    <span class="opacity-0 group-hover:opacity-100 transition
+                                 text-white text-xs bg-black/50 px-3 py-1.5 rounded-full">
+                        Ver carrossel
+                    </span>
+                </div>
+                <!-- Badge -->
+                <div class="absolute top-2 left-2 pointer-events-none">
+                    <span class="bg-black/70 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                        🎠 {{ frames | length }}×
+                    </span>
                 </div>
             </div>
 
@@ -241,9 +243,8 @@
     {% if is_carousel and not is_gerando %}
     <!-- CAROUSEL VIEWER MODAL -->
     <div id="carousel-{{ post.id }}"
-         class="fixed inset-0 z-50 bg-black/85 items-center justify-center p-3"
-         style="display:none"
-         onclick="if(event.target===this) closeCarousel('{{ post.id }}')">
+         class="hidden fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3"
+         onclick="if(event.target===this) closeModal('carousel-{{ post.id }}')">
         <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl
                     max-h-[95vh] flex flex-col">
 
@@ -303,7 +304,7 @@
             <div class="p-4 overflow-y-auto flex-1">
                 <div class="flex justify-between items-start gap-2 mb-3">
                     <h3 class="font-bold text-gray-900 leading-tight text-sm">{{ post.titulo }}</h3>
-                    <button onclick="closeCarousel('{{ post.id }}')"
+                    <button onclick="closeModal('carousel-{{ post.id }}')"
                         class="text-gray-400 hover:text-gray-600 text-lg flex-shrink-0 leading-none">
                         ✕
                     </button>
@@ -338,7 +339,7 @@
                             ✓ Aprovar
                         </button>
                     </form>
-                    <button onclick="closeCarousel('{{ post.id }}'); toggle('feedback-{{ post.id }}')"
+                    <button onclick="closeModal('carousel-{{ post.id }}'); toggle('feedback-{{ post.id }}')"
                         class="px-4 py-2 bg-red-100 text-red-600 text-xs font-medium
                                rounded-lg hover:bg-red-200 transition">
                         ✕ Reprovar
@@ -549,18 +550,12 @@ function toggle(id) {
 const _cvState = {};
 
 function openCarousel(postId) {
-    const el = document.getElementById('carousel-' + postId);
-    if (!el) return;
-    el.style.display = 'flex';
     _cvState[postId] = 0;
-    document.body.style.overflow = 'hidden';
+    openModal('carousel-' + postId);
 }
 
 function closeCarousel(postId) {
-    const el = document.getElementById('carousel-' + postId);
-    if (!el) return;
-    el.style.display = 'none';
-    document.body.style.overflow = '';
+    closeModal('carousel-' + postId);
 }
 
 function _cvGoto(postId, idx) {
