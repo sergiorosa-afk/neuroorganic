@@ -61,7 +61,7 @@
                 <div class="absolute inset-0 bg-gray-200 rounded-lg" style="transform: translate(2.5px,2.5px); z-index:1;"></div>
                 <!-- Imagem principal -->
                 <div class="relative cursor-pointer group rounded-lg overflow-hidden" style="z-index:2;"
-                     onclick="openCarousel('carousel-{{ post.id }}')">
+                     onclick="openCarousel('{{ post.id }}')">
                     {% if post.imagem_url %}
                     <img src="{{ post.imagem_url }}"
                          class="w-full h-56 md:h-full object-cover"
