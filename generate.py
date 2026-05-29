@@ -331,6 +331,7 @@ def gerar_posts_hoje(data=None, cliente_id=None, prompt_layout_id=None):
                 titulo, legenda, prompt_img = _gerar_texto(
                     gemini_client, prompt_estilo.intencao, template_visual,
                     contexto=contexto,
+                    layout=layout,
                 )
 
             print(f"[{cliente.nome}] Gerando imagem...")
@@ -511,6 +512,7 @@ def regerar_post(post):
             feedback=post.feedback,
             titulo_anterior=post.titulo,
             contexto=contexto,
+            layout=layout,
         )
 
     subheadline = prompt_estilo.texto_subheadline or ""
@@ -577,7 +579,7 @@ def _fix_json(text):
     return ''.join(result)
 
 
-def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo_anterior=None, contexto=""):
+def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo_anterior=None, contexto="", layout=None):
     """Call Gemini API to generate title, caption, and refined image prompt."""
     feedback_ctx = ""
     if feedback:
@@ -585,9 +587,23 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
         if titulo_anterior:
             feedback_ctx += f'\nPost reprovado: "{titulo_anterior}" — crie algo notavelmente DIFERENTE.'
 
+    tema_ctx = ""
+    if layout:
+        nome_tema = layout.nome or ""
+        desc_tema = layout.descricao or ""
+        tema_ctx = (
+            f"\n\n## TEMA ATIVO: {nome_tema}\n"
+            + (f"Descrição: {desc_tema}\n" if desc_tema else "")
+            + "\nIMPORTANTE: O título e a legenda DEVEM incorporar o espírito e vocabulário deste tema de forma criativa e autêntica. "
+            + "Adapte o tom, as metáforas, os emojis e o estilo narrativo ao tema — não use o padrão genérico de sempre. "
+            + "Exemplo para 'Festa Junina': use expressões regionais, referências à tradição, clima festivo, calor humano da festa. "
+            + "Mantenha a regra do headline (máx 80 chars, gancho irresistível que para o scroll)."
+        )
+
     user_message = (
         f"Crie um post Instagram para hoje.\n\n"
-        f"INTENÇÃO DO DIA: {intencao}\n\n"
+        f"INTENÇÃO DO DIA: {intencao}"
+        f"{tema_ctx}\n\n"
         f"TEMPLATE DO PROMPT DE IMAGEM:\n{prompt_imagem_template}"
         f"{feedback_ctx}\n\n"
         f"No campo \"prompt_imagem\" do JSON, refine o template acima "
@@ -602,7 +618,7 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
         contents=user_message,
         config=types.GenerateContentConfig(
             system_instruction=_build_system_prompt(contexto),
-            temperature=0.7,
+            temperature=0.85 if layout else 0.7,
         ),
     )
 
