@@ -522,6 +522,105 @@ def layouts_preview_prompt():
     return jsonify(ok=True, prompt=montar_prompt_imagem(l))
 
 
+# ── Copia Tema ────────────────────────────────────────────────────────────────
+
+@app.route('/copia-tema')
+@login_required
+def copia_tema():
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
+    cliente_sel = Cliente.query.get_or_404(cliente_id)
+    return render_template('admin/copia_tema.html', cliente_sel=cliente_sel)
+
+
+@app.route('/copia-tema/analisar', methods=['POST'])
+@login_required
+def copia_tema_analisar():
+    from generate import analisar_imagem_para_prompt
+
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return jsonify(error='Empresa não selecionada'), 400
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    file = request.files.get('imagem')
+    if not file or not file.filename:
+        return jsonify(error='Nenhuma imagem enviada'), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+        return jsonify(error='Formato inválido. Use JPG, PNG ou WebP'), 400
+
+    upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'tmp')
+    os.makedirs(upload_dir, exist_ok=True)
+    tmp_path = os.path.join(upload_dir, f'copia_{uuid.uuid4().hex}{ext}')
+    file.save(tmp_path)
+
+    try:
+        prompt = analisar_imagem_para_prompt(tmp_path, gemini_api_key=cliente.gemini_api_key)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    return jsonify(ok=True, prompt=prompt)
+
+
+@app.route('/copia-tema/salvar', methods=['POST'])
+@login_required
+def copia_tema_salvar():
+    cliente_id, redir = _get_cliente_id()
+    if redir:
+        return redir
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    nome = request.form.get('nome', '').strip()
+    prompt = request.form.get('prompt_gerado', '').strip()
+    if not nome or not prompt:
+        flash('Nome e prompt são obrigatórios.', 'danger')
+        return redirect(url_for('copia_tema'))
+
+    # Append brand palette instruction so generated images use brand colors
+    paleta_instrucao = 'Use brand accent colors naturally integrated into the scene'
+    if paleta_instrucao not in prompt:
+        prompt_final = prompt.rstrip('. ') + f'. {paleta_instrucao}.'
+    else:
+        prompt_final = prompt
+
+    layout = PromptLayout(cliente_id=cliente_id)
+    layout.nome = nome
+    layout.descricao = request.form.get('descricao', '').strip()
+    layout.prompt_gerado = prompt_final
+    # Mark parametric fields as empty — prompt_gerado is used directly
+    layout.cenario = ''
+    layout.estilo_visual = 'photorealistic'
+    layout.personagens = ''
+    layout.iluminacao = ''
+    layout.elementos_visuais = ''
+    layout.humor = ''
+    layout.paleta = 'marca'
+    layout.restricoes = ''
+    layout.ativo = True
+
+    vde = request.form.get('vigente_de', '').strip()
+    vate = request.form.get('vigente_ate', '').strip()
+    try:
+        layout.vigente_de = datetime.strptime(vde, '%Y-%m-%d').date() if vde else None
+        layout.vigente_ate = datetime.strptime(vate, '%Y-%m-%d').date() if vate else None
+    except ValueError:
+        layout.vigente_de = None
+        layout.vigente_ate = None
+
+    db.session.add(layout)
+    db.session.commit()
+    flash(f'Tema "{nome}" salvo com sucesso.', 'success')
+    return redirect(url_for('admin_layouts'))
+
+
 # ── Admin — Clientes ──────────────────────────────────────────────────────────
 
 @app.route('/admin/clientes')

@@ -1108,3 +1108,45 @@ Legenda: Próxima legenda...
         ),
     )
     return response.text.strip()
+
+
+# ── Copia Tema — análise de imagem ────────────────────────────────────────────
+
+def analisar_imagem_para_prompt(filepath, gemini_api_key=None):
+    """Analyse a reference image and return a Flux-compatible image generation prompt.
+
+    The prompt describes composition, lighting, mood, and style without
+    referencing specific brand elements (colors, logos) from the source image,
+    so the caller can apply the target brand palette on top.
+    """
+    from PIL import Image as PILImage
+
+    client = _gemini_client(api_key=gemini_api_key)
+
+    img = PILImage.open(filepath)
+    # Keep aspect ratio, cap at 1024px longest side for API efficiency
+    img.thumbnail((1024, 1024), PILImage.LANCZOS)
+
+    system = """You are an expert AI art director. Your task is to reverse-engineer an Instagram post image and produce a precise, detailed image generation prompt compatible with Flux (a text-to-image AI).
+
+The prompt must:
+- Be written entirely in English
+- Describe COMPOSITION, LIGHTING, MOOD, ATMOSPHERE, PHOTOGRAPHIC STYLE, and SUBJECT TYPE
+- NOT mention any specific brand name, logo, text overlays, or brand colors from the source image
+- NOT include instructions about colors — the final prompt will have brand colors added separately
+- End with: "Vertical portrait 3:4 format (1080x1440px) optimized for Instagram feed. Clean negative space in the lower third for text overlay. No text, no letters, no typography in the image itself."
+- Be a single paragraph, 80–150 words
+- Focus on what makes the image visually compelling and replicable
+
+Return ONLY the prompt text, nothing else."""
+
+    response = _gemini_generate_with_retry(
+        client,
+        model='gemini-2.5-flash',
+        contents=[img, "Analyse this image and produce the Flux image generation prompt as instructed."],
+        config=types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=0.3,
+        ),
+    )
+    return response.text.strip()
