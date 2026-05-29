@@ -129,8 +129,8 @@ def get_layout_ativo(cliente_id, data):
         if not l.vigente_de and not l.vigente_ate:
             return l
 
-    # Priority 3: most recently created active layout
-    return sorted(layouts, key=lambda l: l.criado_em, reverse=True)[0]
+    # No match — date-ranged layouts that are out of range are NOT used
+    return None
 
 
 def preencher_campos_ia(descricao, gemini_api_key=None):

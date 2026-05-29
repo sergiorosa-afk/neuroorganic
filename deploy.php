@@ -202,6 +202,8 @@ migrations = [
     # Sprint Carrossel — novas colunas em posts
     "ALTER TABLE posts ADD COLUMN tipo ENUM('post', 'carrossel') NOT NULL DEFAULT 'post'",
     "ALTER TABLE posts ADD COLUMN frames_json MEDIUMTEXT",
+    "ALTER TABLE posts MODIFY COLUMN titulo VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
+    "ALTER TABLE posts MODIFY COLUMN legenda MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
     "ALTER TABLE posts MODIFY COLUMN status ENUM('pendente', 'aprovado', 'reprovado', 'publicado', 'gerando') NOT NULL DEFAULT 'pendente'",
     # Sprint de Temas Visuais — PromptLayout
     """CREATE TABLE IF NOT EXISTS prompt_layouts (
