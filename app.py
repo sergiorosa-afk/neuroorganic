@@ -537,45 +537,47 @@ def copia_tema():
 @app.route('/copia-tema/analisar', methods=['POST'])
 @login_required
 def copia_tema_analisar():
-    from generate import analisar_imagem_para_prompt
-
-    cliente_id, redir = _get_cliente_id()
-    if redir:
-        return jsonify(error='Empresa não selecionada'), 400
-    cliente = Cliente.query.get_or_404(cliente_id)
-
-    import base64, io
-    data = request.get_json(silent=True) or {}
-    b64 = data.get('imagem_b64', '').strip()
-    mime = data.get('mime', 'image/jpeg')
-    if not b64:
-        return jsonify(error='Nenhuma imagem enviada'), 400
-
-    mime_to_ext = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp'}
-    ext = mime_to_ext.get(mime, '.jpg')
-
+    import base64, traceback
     try:
-        img_bytes = base64.b64decode(b64)
-    except Exception:
-        return jsonify(error='Imagem inválida'), 400
+        from generate import analisar_imagem_para_prompt
 
-    upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'tmp')
-    os.makedirs(upload_dir, exist_ok=True)
-    tmp_path = os.path.join(upload_dir, f'copia_{uuid.uuid4().hex}{ext}')
-    with open(tmp_path, 'wb') as f:
-        f.write(img_bytes)
+        cliente_id, redir = _get_cliente_id()
+        if redir:
+            return jsonify(error='Empresa não selecionada'), 400
+        cliente = Cliente.query.get_or_404(cliente_id)
 
-    try:
-        prompt = analisar_imagem_para_prompt(tmp_path, gemini_api_key=cliente.gemini_api_key)
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-    finally:
+        data = request.get_json(silent=True) or {}
+        b64 = data.get('imagem_b64', '').strip()
+        mime = data.get('mime', 'image/jpeg')
+        if not b64:
+            return jsonify(error='Nenhuma imagem enviada'), 400
+
+        mime_to_ext = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp'}
+        ext = mime_to_ext.get(mime, '.jpg')
+
         try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+            img_bytes = base64.b64decode(b64)
+        except Exception:
+            return jsonify(error='Imagem inválida'), 400
 
-    return jsonify(ok=True, prompt=prompt)
+        upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'tmp')
+        os.makedirs(upload_dir, exist_ok=True)
+        tmp_path = os.path.join(upload_dir, f'copia_{uuid.uuid4().hex}{ext}')
+        with open(tmp_path, 'wb') as f:
+            f.write(img_bytes)
+
+        try:
+            prompt = analisar_imagem_para_prompt(tmp_path, gemini_api_key=cliente.gemini_api_key)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+        return jsonify(ok=True, prompt=prompt)
+    except Exception:
+        tb = traceback.format_exc()
+        return jsonify(error=tb), 500
 
 
 @app.route('/copia-tema/salvar', methods=['POST'])
