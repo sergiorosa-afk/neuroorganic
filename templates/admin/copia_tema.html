@@ -162,9 +162,15 @@ btnAnalisar.addEventListener('click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imagem_b64: b64, mime: 'image/jpeg' })
         });
-        const data = await res.json();
+        const text = await res.text();
         loadingMsg.classList.add('hidden');
-
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch(_) {
+            alert('Resposta do servidor (status ' + res.status + '):\n\n' + text.slice(0, 500));
+            return;
+        }
         if (data.ok) {
             promptTextarea.value = data.prompt;
             step3.classList.remove('hidden');
