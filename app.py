@@ -544,18 +544,26 @@ def copia_tema_analisar():
         return jsonify(error='Empresa não selecionada'), 400
     cliente = Cliente.query.get_or_404(cliente_id)
 
-    file = request.files.get('imagem')
-    if not file or not file.filename:
+    import base64, io
+    data = request.get_json(silent=True) or {}
+    b64 = data.get('imagem_b64', '').strip()
+    mime = data.get('mime', 'image/jpeg')
+    if not b64:
         return jsonify(error='Nenhuma imagem enviada'), 400
 
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
-        return jsonify(error='Formato inválido. Use JPG, PNG ou WebP'), 400
+    mime_to_ext = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp'}
+    ext = mime_to_ext.get(mime, '.jpg')
+
+    try:
+        img_bytes = base64.b64decode(b64)
+    except Exception:
+        return jsonify(error='Imagem inválida'), 400
 
     upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'tmp')
     os.makedirs(upload_dir, exist_ok=True)
     tmp_path = os.path.join(upload_dir, f'copia_{uuid.uuid4().hex}{ext}')
-    file.save(tmp_path)
+    with open(tmp_path, 'wb') as f:
+        f.write(img_bytes)
 
     try:
         prompt = analisar_imagem_para_prompt(tmp_path, gemini_api_key=cliente.gemini_api_key)

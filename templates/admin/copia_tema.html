@@ -139,11 +139,20 @@ btnAnalisar.addEventListener('click', async () => {
     promptTextarea.value = '';
     btnAnalisar.disabled = true;
 
-    const fd = new FormData();
-    fd.append('imagem', selectedFile);
+    // Encode as base64 to bypass ModSecurity binary upload block
+    const b64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+    });
 
     try {
-        const res = await fetch("{{ url_for('copia_tema_analisar') }}", { method: 'POST', body: fd });
+        const res = await fetch("{{ url_for('copia_tema_analisar') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imagem_b64: b64, mime: selectedFile.type })
+        });
         const data = await res.json();
         loadingMsg.classList.add('hidden');
 
