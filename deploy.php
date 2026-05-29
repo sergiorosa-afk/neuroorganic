@@ -246,6 +246,62 @@ PY;
     exit;
 }
 
+// ── Diagnóstico copia-tema ────────────────────────────────────────────────────
+if ($action === 'diag-copia') {
+    $env_file = "$DIR/.env";
+    $script = <<<PY
+import sys, os, traceback
+sys.path.insert(0, '$DIR')
+from dotenv import load_dotenv
+load_dotenv('$env_file')
+
+print("=== imports ===")
+try:
+    from PIL import Image
+    print("PIL OK:", Image.__version__)
+except Exception as e:
+    print("PIL ERRO:", e)
+
+try:
+    from generate import analisar_imagem_para_prompt
+    print("import analisar_imagem_para_prompt OK")
+except Exception as e:
+    traceback.print_exc()
+    print("ERRO import:", e)
+
+print("=== app context ===")
+try:
+    from app import app
+    with app.app_context():
+        print("app.root_path:", app.root_path)
+        upload_dir = os.path.join(app.root_path, 'static', 'uploads', 'tmp')
+        print("upload_dir:", upload_dir)
+        os.makedirs(upload_dir, exist_ok=True)
+        print("makedirs OK")
+        # Testar com imagem mínima 1x1 JPEG
+        import base64, tempfile
+        jpeg1x1 = '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVIP/2Q=='
+        img_bytes = base64.b64decode(jpeg1x1)
+        tmp = tempfile.mktemp(suffix='.jpg', dir=upload_dir)
+        open(tmp, 'wb').write(img_bytes)
+        print("tmp file:", tmp)
+        result = analisar_imagem_para_prompt(tmp, gemini_api_key=None)
+        print("RESULTADO:", result[:100])
+        try: os.remove(tmp)
+        except: pass
+except Exception as e:
+    traceback.print_exc()
+    print("ERRO:", e)
+PY;
+    $tmp = tempnam('/tmp', 'diag_') . '.py';
+    file_put_contents($tmp, $script);
+    $out = shell_exec("cd $DIR && $PYTHON $tmp 2>&1");
+    unlink($tmp);
+    echo $out;
+    echo "\n=== Diagnóstico concluído ===\n";
+    exit;
+}
+
 // ── Inicializar banco de dados ────────────────────────────────────────────────
 if ($action === 'init') {
     if (!file_exists("$DIR/.env")) {
