@@ -235,16 +235,36 @@ You MUST respond with ONLY valid JSON. No markdown code blocks, no explanations,
 Any text outside this JSON structure will cause a system error. Respond with pure JSON only."""
 
 
-def _build_system_prompt(contexto=""):
-    if not contexto:
-        return BASE_SYSTEM_PROMPT
-    return (
-        BASE_SYSTEM_PROMPT
-        + f"\n\n## Brand Context — HIGHEST PRIORITY\n\n"
-        + "Everything you create — titles, captions, image prompts — MUST reflect this brand context. "
-        + "It overrides any generic assumption about audience, tone, or visual style.\n\n"
-        + contexto
-    )
+def _build_system_prompt(contexto="", layout=None):
+    prompt = BASE_SYSTEM_PROMPT
+
+    if contexto:
+        prompt += (
+            "\n\n## Brand Context — HIGHEST PRIORITY\n\n"
+            "Everything you create — titles, captions, image prompts — MUST reflect this brand context. "
+            "It overrides any generic assumption about audience, tone, or visual style.\n\n"
+            + contexto
+        )
+
+    if layout:
+        nome = layout.nome or ""
+        desc = layout.descricao or ""
+        prompt += (
+            f"\n\n## TEMA ATIVO: {nome} — MÁXIMA PRIORIDADE CRIATIVA\n\n"
+            + (f"Descrição do tema: {desc}\n\n" if desc else "")
+            + "OVERRIDE CRIATIVO OBRIGATÓRIO: Este tema muda TUDO no texto — tom, vocabulário, metáforas, emojis, estrutura narrativa.\n\n"
+            + "Regras INVIOLÁVEIS com tema ativo:\n"
+            + f"1. O título DEVE ter referência direta ao tema '{nome}' (palavra, expressão, gíria ou metáfora do tema)\n"
+            + "2. A legenda pode (e deve) quebrar a estrutura padrão para ser autêntica ao tema — adapte o arco narrativo ao clima do tema\n"
+            + "3. Use emojis temáticos que remetem ao tema (ex: Festa Junina → 🎪🎉🌽🔥🎶⭐)\n"
+            + "4. O gancho (primeiros 125 chars) deve IMEDIATAMENTE situar o leitor no universo do tema\n"
+            + "5. A regra do headline se mantém: máximo 80 caracteres, gancho irresistível\n"
+            + "6. Mantenha os 5 hashtags no final\n\n"
+            + "PROIBIDO: usar o padrão genérico de 'Você sente que...', 'Muitas mulheres...', 'Imagine ter...' quando há tema ativo. "
+            + "O conteúdo deve ser genuinamente temático e criativo."
+        )
+
+    return prompt
 
 
 def _gemini_client(api_key=None):
@@ -617,8 +637,8 @@ def _gerar_texto(client, intencao, prompt_imagem_template, feedback=None, titulo
         model="gemini-2.5-flash",
         contents=user_message,
         config=types.GenerateContentConfig(
-            system_instruction=_build_system_prompt(contexto),
-            temperature=0.85 if layout else 0.7,
+            system_instruction=_build_system_prompt(contexto, layout=layout),
+            temperature=0.9 if layout else 0.7,
         ),
     )
 
