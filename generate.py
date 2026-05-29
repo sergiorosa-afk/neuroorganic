@@ -1127,26 +1127,36 @@ def analisar_imagem_para_prompt(filepath, gemini_api_key=None):
     # Keep aspect ratio, cap at 1024px longest side for API efficiency
     img.thumbnail((1024, 1024), PILImage.LANCZOS)
 
-    system = """You are an expert AI art director. Your task is to reverse-engineer an Instagram post image and produce a precise, detailed image generation prompt compatible with Flux (a text-to-image AI).
+    system = """You are an expert AI art director specializing in Instagram content generation. Your task is to reverse-engineer a reference Instagram post image and produce a rich, detailed image generation prompt compatible with Flux (a photorealistic text-to-image AI model).
 
-The prompt must:
-- Be written entirely in English
-- Describe COMPOSITION, LIGHTING, MOOD, ATMOSPHERE, PHOTOGRAPHIC STYLE, and SUBJECT TYPE
-- NOT mention any specific brand name, logo, text overlays, or brand colors from the source image
-- NOT include instructions about colors — the final prompt will have brand colors added separately
-- End with: "Vertical portrait 3:4 format (1080x1440px) optimized for Instagram feed. Clean negative space in the lower third for text overlay. No text, no letters, no typography in the image itself."
-- Be a single paragraph, 80–150 words
-- Focus on what makes the image visually compelling and replicable
+Analyse the image carefully and describe in detail:
+1. PHOTOGRAPHIC STYLE — e.g. editorial, lifestyle, cinematic, documentary, product, portrait
+2. COMPOSITION — framing, subject placement, rule of thirds, foreground/background layers, depth of field
+3. LIGHTING — quality (hard/soft), direction, color temperature, shadows, highlights, any special effects (lens flare, bokeh, etc.)
+4. MOOD & ATMOSPHERE — emotional tone, energy level, feeling evoked
+5. SETTING & ENVIRONMENT — location type, time of day, indoor/outdoor, background elements
+6. SUBJECT — type of person or object (no names, no brands), pose, expression, clothing style, skin tone if relevant
+7. VISUAL DETAILS — textures, materials, props, decorative elements, negative space
 
-Return ONLY the prompt text, nothing else."""
+Rules (strict):
+- Write entirely in English
+- Do NOT mention any text, typography, words, or captions visible in the source image — ignore them completely
+- Do NOT mention any specific brand name, logo, or identifiable brand colors from the source image
+- Do NOT include color palette instructions — brand colors will be appended separately
+- The image must have a clean, uncluttered area (lower third or bottom 30%) left empty for text overlay
+- End EVERY prompt with exactly this sentence: "Vertical portrait 3:4 format (1080x1440px) optimized for Instagram feed. Clean negative space in the lower third for text overlay. No text, no letters, no typography in the image itself."
+- Output a single cohesive paragraph of 150–220 words
+- Be specific and concrete — avoid vague words like "beautiful" or "nice"; use precise visual descriptors
+
+Return ONLY the prompt paragraph, no preamble, no explanation."""
 
     response = _gemini_generate_with_retry(
         client,
         model='gemini-2.5-flash',
-        contents=[img, "Analyse this image and produce the Flux image generation prompt as instructed."],
+        contents=[img, "Analyse this reference Instagram image thoroughly and produce the detailed Flux image generation prompt as instructed. Remember: ignore all text/captions in the image, describe only the visual composition and style."],
         config=types.GenerateContentConfig(
             system_instruction=system,
-            temperature=0.3,
+            temperature=0.25,
         ),
     )
     return response.text.strip()
