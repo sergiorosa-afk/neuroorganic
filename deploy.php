@@ -249,46 +249,41 @@ PY;
 // ── Diagnóstico tema + charset ───────────────────────────────────────────────
 if ($action === 'diag-tema') {
     $env_file = "$DIR/.env";
-    $script = <<<PY
+    $script = <<<'PYEOF'
 import os, sys
-sys.path.insert(0, '$DIR')
+sys.path.insert(0, '/home3/fionco36/neuroseller.com.br/neuroorganic')
 from dotenv import load_dotenv
-load_dotenv('$env_file')
+load_dotenv('/home3/fionco36/neuroseller.com.br/neuroorganic/.env')
 from app import app
-from models import db, Post, PromptLayout
+from models import db, Post, PromptLayout, Cliente
 from generate import get_layout_ativo
 from datetime import date
 
 with app.app_context():
-    # Charset da coluna titulo
     r = db.session.execute(db.text(
         "SELECT CHARACTER_SET_NAME, COLLATION_NAME FROM information_schema.COLUMNS "
         "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='posts' AND COLUMN_NAME='titulo'"
     )).fetchone()
-    print(f"titulo charset: {r[0]}, collation: {r[1]}")
+    print("titulo charset:", r[0], "collation:", r[1])
 
-    # Último post
     p = Post.query.order_by(Post.id.desc()).first()
     if p:
-        print(f"\nÚltimo post ID={p.id}")
-        print(f"  titulo raw: {repr(p.titulo)}")
-        print(f"  data: {p.data_publicacao}")
-        print(f"  prompt_usado[:150]: {(p.prompt_usado or '')[:150]}")
+        print("Ultimo post ID=" + str(p.id))
+        print("  titulo raw:", repr(p.titulo))
+        print("  data:", p.data_publicacao)
+        print("  prompt_usado:", (p.prompt_usado or '')[:150])
 
-    # Layouts ativos e qual seria selecionado hoje
     hoje = date.today()
     layouts = PromptLayout.query.filter_by(ativo=True).all()
-    print(f"\nLayouts ativos ({len(layouts)}):")
+    print("Layouts ativos:", len(layouts))
     for l in layouts:
         dentro = "DENTRO" if l.vigente_para(hoje) else "fora" if (l.vigente_de or l.vigente_ate) else "sempre-ativo"
-        print(f"  ID={l.id} nome='{l.nome}' cliente_id={l.cliente_id} de={l.vigente_de} ate={l.vigente_ate} [{dentro}]")
+        print("  ID=" + str(l.id) + " nome=" + l.nome + " de=" + str(l.vigente_de) + " ate=" + str(l.vigente_ate) + " [" + dentro + "]")
 
-    # Layout que seria selecionado para cada cliente
-    from models import Cliente
     for c in Cliente.query.filter_by(ativo=True).all():
         layout = get_layout_ativo(c.id, hoje)
-        print(f"\nCliente '{c.nome}' → layout ativo: {layout.nome if layout else 'NENHUM'}")
-PY;
+        print("Cliente " + c.nome + " -> layout: " + (layout.nome if layout else "NENHUM"))
+PYEOF;
     $tmp = tempnam('/tmp', 'diagtema_') . '.py';
     file_put_contents($tmp, $script);
     $out = shell_exec("cd $DIR && $PYTHON $tmp 2>&1");
