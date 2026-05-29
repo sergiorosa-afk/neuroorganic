@@ -139,19 +139,28 @@ btnAnalisar.addEventListener('click', async () => {
     promptTextarea.value = '';
     btnAnalisar.disabled = true;
 
-    // Encode as base64 to bypass ModSecurity binary upload block
+    // Resize to max 600px and encode JPEG 70% to keep payload ~15-20KB (ModSecurity limit)
     const b64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
+        const img = new Image();
+        img.onload = () => {
+            const MAX = 600;
+            let w = img.width, h = img.height;
+            if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+            else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(selectedFile);
     });
 
     try {
         const res = await fetch("{{ url_for('copia_tema_analisar') }}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagem_b64: b64, mime: selectedFile.type })
+            body: JSON.stringify({ imagem_b64: b64, mime: 'image/jpeg' })
         });
         const data = await res.json();
         loadingMsg.classList.add('hidden');
